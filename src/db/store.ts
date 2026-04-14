@@ -107,10 +107,10 @@ export function updateFutureItemStatus(id: string, status: FutureWatchItem['revi
   if (item) { item.review_status = status; save(db); }
 }
 
-export function resetInputsByTimeKey(timeKey: string): { inputs: number; futures: number } {
+export function resetInputsByTimeKey(timeKey: string): number {
   const db = load();
 
-  const beforeInputs = db.inputs.length;
+  const before = db.inputs.length;
   db.inputs = db.inputs.filter((i) => i.time_key !== timeKey);
 
   db.relations = db.relations.filter((r) => {
@@ -118,17 +118,10 @@ export function resetInputsByTimeKey(timeKey: string): { inputs: number; futures
     return snap?.time_key !== timeKey;
   });
 
-  // 同时清理当天上传的未来观察项（linked_snapshot_time_key === timeKey）
-  const beforeFutures = db.future_watchlist.length;
-  db.future_watchlist = db.future_watchlist.filter(
-    (f) => f.linked_snapshot_time_key !== timeKey,
-  );
+  // future_watchlist 是全局数据，按 expected_time 跨多天展示，不随 reset 删除
 
   save(db);
-  return {
-    inputs: beforeInputs - db.inputs.length,
-    futures: beforeFutures - db.future_watchlist.length,
-  };
+  return before - db.inputs.length;
 }
 
 export function resetDB(): void {

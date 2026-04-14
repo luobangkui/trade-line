@@ -258,11 +258,13 @@ curl -X POST {BASE_URL}/api/baseline/reset/2026-04-14 \
 {
   "success": true,
   "deleted_inputs": 6,
-  "deleted_futures": 2,
   "inserted": 2,
   "snapshot": { "market_stage": "MAIN_UP", "emotion_score": 72, ... }
 }
 ```
+
+> **注意**：`reset` 不会清理 `future_watchlist`。未来观察项是全局数据，按 `expected_time` 在多天快照中展示，不属于某一天独有。
+> 如需清理某条未来事件，请单独调用 `POST /api/baseline/future/:id/status` 将其标记为 `expired`。
 
 ---
 
