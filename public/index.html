@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trade Baseline v2</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #0f172a;
+  --bg2:      #1e293b;
+  --bg3:      #334155;
+  --border:   #334155;
+  --text:     #e2e8f0;
+  --muted:    #94a3b8;
+  --accent:   #3b82f6;
+  --radius:   8px;
+  --sidebar:  240px;
+  --detail:   340px;
+}
+
+body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+/* ── Topbar ── */
+#topbar {
+  height: 56px; background: var(--bg2); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 20px; gap: 16px; flex-shrink: 0;
+}
+#topbar .logo { font-weight: 700; font-size: 17px; letter-spacing: -0.3px; color: #f1f5f9; }
+#topbar .logo span { color: var(--accent); }
+#topbar .today-badge {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+  padding: 4px 10px; font-size: 12px; color: var(--muted);
+}
+#status-chip {
+  margin-left: auto; display: flex; align-items: center; gap: 8px;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 20px;
+  padding: 5px 14px; font-size: 13px;
+}
+.status-dot { width: 8px; height: 8px; border-radius: 50%; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ── Layout ── */
+#main { display: flex; flex: 1; overflow: hidden; }
+
+/* ── Sidebar ── */
+#sidebar {
+  width: var(--sidebar); background: var(--bg2); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
+}
+.sidebar-section { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.sidebar-title { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 10px; }
+.stat-card {
+  background: var(--bg3); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 8px;
+}
+.stat-label { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+.stat-value { font-size: 20px; font-weight: 700; }
+.stat-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+#filter-list { display: flex; flex-direction: column; gap: 4px; }
+.filter-btn {
+  background: none; border: 1px solid transparent; border-radius: 6px; color: var(--muted);
+  font-size: 12px; padding: 5px 8px; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 6px;
+  transition: all .15s;
+}
+.filter-btn:hover { background: var(--bg3); color: var(--text); }
+.filter-btn.active { background: var(--bg3); border-color: var(--border); color: var(--text); }
+.filter-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+#date-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+.date-item {
+  padding: 6px 16px; cursor: pointer; font-size: 12px; color: var(--muted);
+  display: flex; align-items: center; gap: 6px; transition: background .1s;
+}
+.date-item:hover { background: var(--bg3); color: var(--text); }
+.date-item.today { color: var(--accent); font-weight: 600; }
+.date-item.selected { background: var(--bg3); color: var(--text); }
+.date-item .di-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── Timeline ── */
+#timeline-wrap { flex: 1; overflow-y: auto; padding: 24px 0; display: flex; flex-direction: column; align-items: center; }
+#timeline { position: relative; width: 100%; max-width: 600px; }
+
+.tl-axis { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: var(--border); transform: translateX(-50%); }
+
+.tl-node-wrap {
+  position: relative; display: flex; align-items: center; margin-bottom: 4px;
+  cursor: pointer; transition: opacity .15s;
+}
+.tl-node-wrap:hover { opacity: .85; }
+.tl-node-wrap.filtered { display: none; }
+
+/* Alternating left/right */
+.tl-node-wrap:nth-child(odd)  { flex-direction: row; }
+.tl-node-wrap:nth-child(even) { flex-direction: row-reverse; }
+
+.tl-card {
+  width: calc(50% - 36px); background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 12px; transition: border-color .15s, box-shadow .15s;
+}
+.tl-card:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent)22; }
+.tl-card.today-card { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent)33; }
+
+.tl-node-wrap:nth-child(odd)  .tl-card { margin-right: 0; }
+.tl-node-wrap:nth-child(even) .tl-card { margin-left: 0; }
+
+.tl-connector { width: 36px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; position: relative; }
+.tl-connector-line { position: absolute; height: 2px; background: var(--border); width: 100%; }
+
+/* Node shapes */
+.tl-shape { width: 24px; height: 24px; flex-shrink: 0; z-index: 1; position: relative; display: flex; align-items: center; justify-content: center; }
+.shape-circle { width: 16px; height: 16px; border-radius: 50%; border: 3px solid; background: var(--bg); }
+.shape-diamond { width: 14px; height: 14px; border: 3px solid; background: var(--bg); transform: rotate(45deg); }
+.shape-triangle {
+  width: 0; height: 0;
+  border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 15px solid;
+}
+.tl-shape.today-shape .shape-circle,
+.tl-shape.today-shape .shape-diamond { box-shadow: 0 0 0 4px currentColor33; }
+
+.card-date { font-size: 11px; color: var(--muted); margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+.card-date .bell { font-size: 10px; }
+.card-stage { font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+.card-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+.badge {
+  font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 500;
+  background: var(--bg3);
+}
+.emotion-bar { height: 4px; background: var(--bg3); border-radius: 2px; margin: 6px 0; overflow: hidden; }
+.emotion-fill { height: 100%; border-radius: 2px; transition: width .3s; }
+.card-events { font-size: 11px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
+
+/* Future node */
+.tl-card.future-card { opacity: .75; border-style: dashed; }
+
+/* ── Detail Panel ── */
+#detail {
+  width: var(--detail); background: var(--bg2); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
+  transform: translateX(100%); transition: transform .25s ease;
+}
+#detail.open { transform: translateX(0); }
+
+#detail-header {
+  display: flex; align-items: center; gap: 10px; padding: 16px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+#detail-date { font-size: 15px; font-weight: 700; flex: 1; }
+#detail-close {
+  background: none; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--muted); padding: 4px 10px; cursor: pointer; font-size: 12px;
+}
+#detail-close:hover { background: var(--bg3); color: var(--text); }
+
+#detail-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+.detail-section { }
+.detail-section-title { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 8px; }
+
+.detail-stage-badge {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
+  border-radius: 20px; font-size: 13px; font-weight: 600; border: 1px solid;
+}
+
+.emotion-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.emotion-label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.emotion-num { font-size: 20px; font-weight: 700; min-width: 36px; }
+.emotion-track { flex: 1; height: 8px; background: var(--bg3); border-radius: 4px; overflow: hidden; }
+.emotion-progress { height: 100%; border-radius: 4px; transition: width .5s; }
+
+.risk-badge { padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; display: inline-block; }
+.risk-LOW      { background: #052e16; color: #22c55e; }
+.risk-MEDIUM   { background: #422006; color: #eab308; }
+.risk-HIGH     { background: #431407; color: #f97316; }
+.risk-EXTREME  { background: #450a0a; color: #ef4444; }
+
+.position-range { display: flex; align-items: center; gap: 8px; }
+.pos-bar { flex: 1; height: 8px; background: var(--bg3); border-radius: 4px; position: relative; overflow: hidden; }
+.pos-fill { height: 100%; background: var(--accent); border-radius: 4px; position: absolute; }
+.pos-label { font-size: 13px; font-weight: 600; color: var(--accent); }
+
+.event-list, .future-list, .input-list { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+.event-item { font-size: 12px; color: var(--muted); padding: 5px 8px; background: var(--bg3); border-radius: 5px; line-height: 1.4; }
+.future-item { font-size: 12px; padding: 6px 8px; background: var(--bg3); border-radius: 5px; border-left: 2px solid var(--accent); }
+.future-item .fi-date { color: var(--muted); font-size: 10px; margin-bottom: 2px; }
+.future-item .fi-title { color: var(--text); }
+
+.input-item { background: var(--bg3); border-radius: 5px; padding: 7px 9px; }
+.input-meta { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
+.src-badge { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: var(--bg2); color: var(--muted); border: 1px solid var(--border); }
+.input-title { font-size: 12px; color: var(--text); line-height: 1.3; }
+
+.style-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.style-chip { font-size: 11px; padding: 3px 8px; border-radius: 12px; border: 1px solid; }
+.chip-prefer { border-color: #22c55e44; color: #22c55e; background: #052e16; }
+.chip-avoid  { border-color: #ef444444; color: #ef4444; background: #450a0a; }
+
+.action-summary-box { background: var(--bg3); border-radius: var(--radius); padding: 10px 12px; font-size: 13px; line-height: 1.6; color: var(--text); border-left: 3px solid var(--accent); }
+
+.detail-btn {
+  width: 100%; padding: 9px; border-radius: var(--radius); border: 1px solid var(--border);
+  background: var(--bg3); color: var(--text); font-size: 13px; cursor: pointer; transition: all .15s;
+}
+.detail-btn:hover { background: var(--accent); border-color: var(--accent); }
+.detail-btn.loading { opacity: .6; pointer-events: none; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
+
+/* ── Loading overlay ── */
+#loading { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 100; flex-direction: column; gap: 12px; }
+#loading.hidden { display: none; }
+.spinner { width: 32px; height: 32px; border: 3px solid var(--bg3); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.load-text { font-size: 14px; color: var(--muted); }
+
+/* ── Empty ── */
+.empty-hint { color: var(--muted); font-size: 12px; text-align: center; padding: 20px 0; }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div class="load-text">加载时间线...</div>
+</div>
+
+<!-- Topbar -->
+<div id="topbar">
+  <div class="logo">Trade <span>Baseline</span> v2</div>
+  <div class="today-badge" id="today-label">—</div>
+  <div id="status-chip">
+    <div class="status-dot" id="status-dot" style="background:#94a3b8"></div>
+    <span id="status-text">—</span>
+  </div>
+</div>
+
+<div id="main">
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">今日概览</div>
+      <div class="stat-card">
+        <div class="stat-label">市场阶段</div>
+        <div class="stat-value" id="stat-stage" style="font-size:15px">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">情绪指数</div>
+        <div class="stat-value" id="stat-emotion">—</div>
+        <div class="stat-sub" id="stat-risk">风险等级 —</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">建议仓位</div>
+        <div class="stat-value" id="stat-pos" style="font-size:15px">—</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-title">按阶段筛选</div>
+      <div id="filter-list">
+        <button class="filter-btn active" data-filter="all" onclick="setFilter('all',this)">
+          <span class="filter-dot" style="background:var(--muted)"></span>全部
+        </button>
+        <button class="filter-btn" data-filter="CHAOS" onclick="setFilter('CHAOS',this)">
+          <span class="filter-dot" style="background:#ef4444"></span>混乱期
+        </button>
+        <button class="filter-btn" data-filter="REPAIR_EARLY" onclick="setFilter('REPAIR_EARLY',this)">
+          <span class="filter-dot" style="background:#f97316"></span>修复早期
+        </button>
+        <button class="filter-btn" data-filter="REPAIR_CONFIRM" onclick="setFilter('REPAIR_CONFIRM',this)">
+          <span class="filter-dot" style="background:#eab308"></span>修复确认
+        </button>
+        <button class="filter-btn" data-filter="MAIN_UP" onclick="setFilter('MAIN_UP',this)">
+          <span class="filter-dot" style="background:#22c55e"></span>主升行情
+        </button>
+        <button class="filter-btn" data-filter="HIGH_RISK" onclick="setFilter('HIGH_RISK',this)">
+          <span class="filter-dot" style="background:#a855f7"></span>高位风险
+        </button>
+        <button class="filter-btn" data-filter="DISTRIBUTION" onclick="setFilter('DISTRIBUTION',this)">
+          <span class="filter-dot" style="background:#6366f1"></span>出货期
+        </button>
+        <button class="filter-btn" data-filter="future" onclick="setFilter('future',this)">
+          <span class="filter-dot" style="background:#3b82f6"></span>未来节点
+        </button>
+      </div>
+    </div>
+
+    <div class="sidebar-title" style="padding:12px 16px 4px">日期列表</div>
+    <div id="date-list"></div>
+  </div>
+
+  <!-- Timeline -->
+  <div id="timeline-wrap">
+    <div id="timeline">
+      <div class="tl-axis"></div>
+    </div>
+  </div>
+
+  <!-- Detail Panel -->
+  <div id="detail">
+    <div id="detail-header">
+      <div id="detail-date">—</div>
+      <button id="detail-close" onclick="closeDetail()">✕ 关闭</button>
+    </div>
+    <div id="detail-body"></div>
+  </div>
+</div>
+
+<script>
+const STAGE_META = {
+  CHAOS:          { label:'混乱期',   color:'#ef4444', bg:'#450a0a' },
+  REPAIR_EARLY:   { label:'修复早期', color:'#f97316', bg:'#431407' },
+  REPAIR_CONFIRM: { label:'修复确认', color:'#eab308', bg:'#422006' },
+  MAIN_UP:        { label:'主升行情', color:'#22c55e', bg:'#052e16' },
+  HIGH_RISK:      { label:'高位风险', color:'#a855f7', bg:'#2e1065' },
+  DISTRIBUTION:   { label:'出货期',   color:'#6366f1', bg:'#1e1b4b' },
+  UNKNOWN:        { label:'未知',     color:'#94a3b8', bg:'#1e293b' },
+};
+
+let timelineData = null;
+let selectedDate = null;
+let activeFilter = 'all';
+
+async function loadTimeline() {
+  const end = offsetDate(new Date(), 14);
+  const start = offsetDate(new Date(), -45);
+  const res = await fetch(`/api/baseline/timeline?start=${start}&end=${end}`);
+  timelineData = await res.json();
+  renderSidebar();
+  renderTimeline();
+  updateTopbar();
+  document.getElementById('loading').classList.add('hidden');
+  // 默认滚动到今天
+  setTimeout(() => {
+    const el = document.querySelector('.today-card');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 100);
+}
+
+function offsetDate(d, days) {
+  const r = new Date(d);
+  r.setDate(r.getDate() + days);
+  return r.toISOString().slice(0, 10);
+}
+
+function updateTopbar() {
+  if (!timelineData) return;
+  const today = timelineData.today;
+  document.getElementById('today-label').textContent = today;
+  const todayNode = timelineData.nodes.find(n => n.date === today);
+  const snap = todayNode?.snapshot;
+  if (snap) {
+    const meta = STAGE_META[snap.market_stage] || STAGE_META.UNKNOWN;
+    document.getElementById('status-dot').style.background = meta.color;
+    document.getElementById('status-text').textContent = `${meta.label} · 情绪 ${snap.emotion_score}`;
+    document.getElementById('stat-stage').textContent = meta.label;
+    document.getElementById('stat-stage').style.color = meta.color;
+    document.getElementById('stat-emotion').textContent = snap.emotion_score;
+    document.getElementById('stat-risk').textContent = `风险等级 ${snap.risk_level}`;
+    document.getElementById('stat-pos').textContent =
+      `${Math.round(snap.position_min*100)}% – ${Math.round(snap.position_max*100)}%`;
+  }
+}
+
+function renderSidebar() {
+  if (!timelineData) return;
+  const list = document.getElementById('date-list');
+  list.innerHTML = '';
+  [...timelineData.nodes].reverse().forEach(node => {
+    const meta = node.snapshot ? (STAGE_META[node.snapshot.market_stage] || STAGE_META.UNKNOWN) : null;
+    const el = document.createElement('div');
+    el.className = `date-item${node.date === timelineData.today ? ' today' : ''}${node.date === selectedDate ? ' selected' : ''}`;
+    el.dataset.date = node.date;
+    el.innerHTML = `
+      <span class="di-dot" style="background:${meta ? meta.color : '#475569'}"></span>
+      ${node.date}
+      ${node.future_items.length ? '🔔' : ''}
+    `;
+    el.onclick = () => selectNode(node.date);
+    list.appendChild(el);
+  });
+}
+
+function renderTimeline() {
+  if (!timelineData) return;
+  const tl = document.getElementById('timeline');
+  // 清除旧节点（保留 axis）
+  [...tl.children].forEach(c => { if (!c.classList.contains('tl-axis')) c.remove(); });
+
+  timelineData.nodes.forEach((node, idx) => {
+    const snap = node.snapshot;
+    const meta = snap ? (STAGE_META[snap.market_stage] || STAGE_META.UNKNOWN) : { color: '#475569', label: '—' };
+    const isToday = node.date === timelineData.today;
+    const isFuture = node.is_future;
+    const hasFuture = node.future_items.length > 0;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'tl-node-wrap';
+    wrap.dataset.date = node.date;
+    wrap.dataset.stage = snap?.market_stage || '';
+    wrap.dataset.future = isFuture ? '1' : '0';
+    wrap.onclick = () => selectNode(node.date);
+
+    // shape
+    let shapeHtml;
+    if (isFuture) {
+      shapeHtml = `<div class="tl-shape"><div class="shape-triangle" style="border-bottom-color:${meta.color}"></div></div>`;
+    } else if (isToday) {
+      shapeHtml = `<div class="tl-shape today-shape" style="color:${meta.color}"><div class="shape-diamond" style="border-color:${meta.color}"></div></div>`;
+    } else {
+      shapeHtml = `<div class="tl-shape"><div class="shape-circle" style="border-color:${meta.color}"></div></div>`;
+    }
+
+    // card content
+    const eventsHtml = snap?.core_events?.slice(0,2).map(e =>
+      `<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e}</div>`
+    ).join('') || '';
+
+    const cardContent = snap ? `
+      <div class="card-date">
+        ${node.date}${isToday ? ' <b style="color:var(--accent)">今天</b>' : ''}
+        ${hasFuture ? `<span class="bell">🔔${node.future_items.length}</span>` : ''}
+      </div>
+      <div class="card-stage" style="color:${meta.color}">${meta.label}</div>
+      <div class="emotion-bar"><div class="emotion-fill" style="width:${snap.emotion_score}%;background:${meta.color}"></div></div>
+      <div class="card-meta">
+        <span class="badge">情绪 ${snap.emotion_score}</span>
+        <span class="badge">${snap.risk_level}</span>
+        <span class="badge">${Math.round(snap.position_min*100)}-${Math.round(snap.position_max*100)}%</span>
+      </div>
+      <div class="card-events">${eventsHtml}</div>
+    ` : `
+      <div class="card-date">${node.date}</div>
+      <div class="card-stage" style="color:#3b82f6">未来节点</div>
+      ${node.future_items.slice(0,2).map(f => `<div class="card-events">🔔 ${f.title}</div>`).join('')}
+    `;
+
+    wrap.innerHTML = `
+      <div class="tl-card${isToday?' today-card':''}${isFuture?' future-card':''}">${cardContent}</div>
+      <div class="tl-connector">
+        <div class="tl-connector-line"></div>
+        ${shapeHtml}
+      </div>
+      <div class="tl-card" style="visibility:hidden"></div>
+    `;
+    tl.appendChild(wrap);
+  });
+}
+
+function setFilter(filter, btn) {
+  activeFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.tl-node-wrap').forEach(wrap => {
+    const stage = wrap.dataset.stage;
+    const isFuture = wrap.dataset.future === '1';
+    let show = true;
+    if (filter === 'all') show = true;
+    else if (filter === 'future') show = isFuture;
+    else show = stage === filter;
+    wrap.classList.toggle('filtered', !show);
+  });
+}
+
+async function selectNode(date) {
+  selectedDate = date;
+  document.querySelectorAll('.date-item').forEach(el => {
+    el.classList.toggle('selected', el.dataset.date === date);
+  });
+  document.getElementById('detail').classList.add('open');
+  document.getElementById('detail-date').textContent = date;
+  document.getElementById('detail-body').innerHTML = '<div class="empty-hint">加载中...</div>';
+
+  const [snapRes, inputsRes] = await Promise.all([
+    fetch(`/api/baseline/snapshot?date=${date}`),
+    fetch(`/api/baseline/inputs?date=${date}`),
+  ]);
+
+  const snap = snapRes.ok ? await snapRes.json() : null;
+  const inputs = inputsRes.ok ? await inputsRes.json() : [];
+  const futureNode = timelineData?.nodes.find(n => n.date === date);
+
+  renderDetail(date, snap, inputs, futureNode?.future_items || []);
+}
+
+function renderDetail(date, snap, inputs, futureItems) {
+  const body = document.getElementById('detail-body');
+  if (!snap && !inputs.length && !futureItems.length) {
+    body.innerHTML = '<div class="empty-hint">暂无数据</div>';
+    return;
+  }
+
+  const meta = snap ? (STAGE_META[snap.market_stage] || STAGE_META.UNKNOWN) : null;
+
+  const stageHtml = snap ? `
+    <div class="detail-section">
+      <div class="detail-section-title">市场阶段</div>
+      <div class="detail-stage-badge" style="color:${meta.color};border-color:${meta.color}44;background:${meta.bg}">
+        <span style="width:8px;height:8px;border-radius:50%;background:${meta.color};display:inline-block"></span>
+        ${meta.label}
+      </div>
+    </div>
+  ` : '';
+
+  const emotionHtml = snap ? `
+    <div class="detail-section">
+      <div class="detail-section-title">情绪指数</div>
+      <div class="emotion-row">
+        <div class="emotion-num" style="color:${meta.color}">${snap.emotion_score}</div>
+        <div class="emotion-track"><div class="emotion-progress" style="width:${snap.emotion_score}%;background:${meta.color}"></div></div>
+        <div class="emotion-label">/100</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span class="risk-badge risk-${snap.risk_level}">${snap.risk_level}</span>
+        <span style="font-size:12px;color:var(--muted)">建议仓位</span>
+        <span class="pos-label">${Math.round(snap.position_min*100)}% – ${Math.round(snap.position_max*100)}%</span>
+      </div>
+    </div>
+  ` : '';
+
+  const summaryHtml = snap?.action_summary ? `
+    <div class="detail-section">
+      <div class="detail-section-title">操作建议</div>
+      <div class="action-summary-box">${snap.action_summary}</div>
+    </div>
+  ` : '';
+
+  const eventsHtml = snap?.core_events?.length ? `
+    <div class="detail-section">
+      <div class="detail-section-title">核心事件</div>
+      <ul class="event-list">
+        ${snap.core_events.map(e => `<li class="event-item">${e}</li>`).join('')}
+      </ul>
+    </div>
+  ` : '';
+
+  const stylesHtml = (snap?.preferred_styles?.length || snap?.avoid_styles?.length) ? `
+    <div class="detail-section">
+      <div class="detail-section-title">风格偏好</div>
+      <div class="style-chips">
+        ${(snap.preferred_styles||[]).map(s=>`<span class="style-chip chip-prefer">↑ ${s}</span>`).join('')}
+        ${(snap.avoid_styles||[]).map(s=>`<span class="style-chip chip-avoid">↓ ${s}</span>`).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  const futureHtml = futureItems.length ? `
+    <div class="detail-section">
+      <div class="detail-section-title">未来观察项 🔔</div>
+      <ul class="future-list">
+        ${futureItems.map(f => `
+          <li class="future-item">
+            <div class="fi-date">${f.expected_time.slice(0,10)} · ${f.event_type} · ${f.certainty}</div>
+            <div class="fi-title">${f.title}</div>
+          </li>
+        `).join('')}
+      </ul>
+    </div>
+  ` : '';
+
+  const watchHtml = snap?.future_watch_items?.length ? `
+    <div class="detail-section">
+      <div class="detail-section-title">近期关注</div>
+      <ul class="future-list">
+        ${snap.future_watch_items.map(fw => `<li class="future-item"><div class="fi-title">${fw}</div></li>`).join('')}
+      </ul>
+    </div>
+  ` : '';
+
+  const inputsHtml = inputs.length ? `
+    <div class="detail-section">
+      <div class="detail-section-title">原子输入 (${inputs.length})</div>
+      <ul class="input-list">
+        ${inputs.slice(0,8).map(inp => `
+          <li class="input-item">
+            <div class="input-meta">
+              <span class="src-badge">${inp.source}</span>
+              <span class="src-badge">${inp.data_type}</span>
+              <span class="src-badge">conf ${(inp.confidence*100).toFixed(0)}%</span>
+            </div>
+            <div class="input-title">${inp.title}</div>
+          </li>
+        `).join('')}
+        ${inputs.length > 8 ? `<li class="event-item" style="text-align:center">... 还有 ${inputs.length-8} 条</li>` : ''}
+      </ul>
+    </div>
+  ` : '';
+
+  const btnHtml = `
+    <div class="detail-section">
+      <button class="detail-btn" id="reaggregate-btn" onclick="reaggregate('${date}')">
+        ↻ 重新聚合
+      </button>
+    </div>
+  `;
+
+  body.innerHTML = stageHtml + emotionHtml + summaryHtml + eventsHtml + stylesHtml + futureHtml + watchHtml + inputsHtml + btnHtml;
+}
+
+async function reaggregate(date) {
+  const btn = document.getElementById('reaggregate-btn');
+  if (btn) { btn.textContent = '聚合中...'; btn.classList.add('loading'); }
+  await fetch(`/api/baseline/aggregate/${date}`, { method: 'POST' });
+  await loadTimeline();
+  selectNode(date);
+}
+
+function closeDetail() {
+  document.getElementById('detail').classList.remove('open');
+  selectedDate = null;
+  document.querySelectorAll('.date-item').forEach(el => el.classList.remove('selected'));
+}
+
+loadTimeline();
+</script>
+</body>
+</html>
