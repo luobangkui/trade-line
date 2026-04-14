@@ -12,7 +12,7 @@ description: >-
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `BASE_URL` | 服务地址，可本地或远程 | `http://localhost:50008` |
+| `BASE_URL` | 服务地址，可本地或远程 | `http://localhost:50001` |
 
 > 所有接口路径均为 `{BASE_URL}/api/baseline/...`
 
