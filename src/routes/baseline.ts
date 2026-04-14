@@ -5,6 +5,7 @@ import type { BaselineInput, FutureWatchItem, InputUploadRequest, TimelineNode }
 import {
   insertInput, getSnapshotByDate, getSnapshotsInRange, getAllInputs,
   insertFutureItem, getFutureItemsByRange, getAllFutureItems, updateFutureItemStatus,
+  resetInputsByTimeKey,
 } from '../db/store';
 import { aggregateSnapshot } from '../services/aggregator';
 
@@ -194,6 +195,36 @@ router.post('/aggregate/:date', async (req: Request, res: Response) => {
   try {
     const snap = await aggregateSnapshot(req.params['date']!);
     res.json(snap);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// POST /api/baseline/reset/:date
+// 清空该日所有 inputs（及关联 relations），写入新数据，重新聚合
+router.post('/reset/:date', async (req: Request, res: Response) => {
+  try {
+    const { date } = req.params;
+    const { inputs: newInputs } = req.body as { inputs?: InputUploadRequest[] };
+
+    const deleted = resetInputsByTimeKey(date);
+
+    const ids: string[] = [];
+    if (Array.isArray(newInputs) && newInputs.length > 0) {
+      for (const body of newInputs) {
+        const merged = { ...body, time_key: date };
+        if (!merged.data_type || !merged.source || !merged.title) continue;
+        if (merged.data_type === 'future_event') {
+          insertFutureItem(makeFuture(merged));
+          continue;
+        }
+        const inp = insertInput(makeInput(merged));
+        ids.push(inp.id);
+      }
+    }
+
+    const snapshot = await aggregateSnapshot(date);
+    res.json({ success: true, deleted, inserted: ids.length, snapshot });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }

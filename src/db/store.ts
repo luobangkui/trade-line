@@ -107,6 +107,18 @@ export function updateFutureItemStatus(id: string, status: FutureWatchItem['revi
   if (item) { item.review_status = status; save(db); }
 }
 
+export function resetInputsByTimeKey(timeKey: string): number {
+  const db = load();
+  const before = db.inputs.length;
+  db.inputs = db.inputs.filter((i) => i.time_key !== timeKey);
+  db.relations = db.relations.filter((r) => {
+    const snap = db.snapshots.find((s) => s.id === r.snapshot_id);
+    return snap?.time_key !== timeKey;
+  });
+  save(db);
+  return before - db.inputs.length;
+}
+
 export function resetDB(): void {
   save({ inputs: [], snapshots: [], relations: [], future_watchlist: [] });
 }

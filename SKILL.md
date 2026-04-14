@@ -275,6 +275,41 @@ GET {BASE_URL}/api/baseline/future
 POST {BASE_URL}/api/baseline/aggregate/2026-04-14
 ```
 
+### 完全覆盖某日数据（清空重写）
+
+```bash
+POST {BASE_URL}/api/baseline/reset/2026-04-14
+```
+
+清空该日**所有 inputs 和关联 relations**，写入新数据后重新聚合快照。
+
+请求体（可选，不传则仅清空）：
+```json
+{
+  "inputs": [
+    {
+      "data_type": "market_snapshot",
+      "source": "quant_agent",
+      "title": "重写后的市场快照",
+      "payload": { "emotion_score": 72 },
+      "confidence": 0.9
+    }
+  ]
+}
+```
+
+响应：
+```json
+{
+  "success": true,
+  "deleted": 3,
+  "inserted": 1,
+  "snapshot": { ... }
+}
+```
+
+> **与 override 的区别**：`reset` 物理删除原始 inputs，历史不可追溯；`override` 保留所有历史，只修正聚合结论。非必要建议用 `override`。
+
 ### 更新未来事件状态
 
 ```bash
