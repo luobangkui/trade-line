@@ -208,6 +208,8 @@ router.post('/reset/:date', async (req: Request, res: Response) => {
     const { inputs: newInputs } = req.body as { inputs?: InputUploadRequest[] };
 
     const deleted = resetInputsByTimeKey(date);
+    const deletedInputs = deleted.inputs;
+    const deletedFutures = deleted.futures;
 
     const ids: string[] = [];
     if (Array.isArray(newInputs) && newInputs.length > 0) {
@@ -224,7 +226,7 @@ router.post('/reset/:date', async (req: Request, res: Response) => {
     }
 
     const snapshot = await aggregateSnapshot(date);
-    res.json({ success: true, deleted, inserted: ids.length, snapshot });
+    res.json({ success: true, deleted_inputs: deletedInputs, deleted_futures: deletedFutures, inserted: ids.length, snapshot });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }

@@ -257,7 +257,8 @@ curl -X POST {BASE_URL}/api/baseline/reset/2026-04-14 \
 ```json
 {
   "success": true,
-  "deleted": 6,
+  "deleted_inputs": 6,
+  "deleted_futures": 2,
   "inserted": 2,
   "snapshot": { "market_stage": "MAIN_UP", "emotion_score": 72, ... }
 }
