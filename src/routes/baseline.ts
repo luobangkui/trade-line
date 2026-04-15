@@ -5,7 +5,7 @@ import type { BaselineInput, FutureWatchItem, InputUploadRequest, TimelineNode }
 import {
   insertInput, getSnapshotByDate, getSnapshotsInRange, getAllInputs,
   insertFutureItem, getFutureItemsByRange, getAllFutureItems, updateFutureItemStatus,
-  resetInputsByTimeKey,
+  resetInputsByTimeKey, getActiveFutureItemsByDate,
 } from '../db/store';
 import { aggregateSnapshot } from '../services/aggregator';
 
@@ -35,16 +35,17 @@ function makeInput(body: InputUploadRequest, extra: Partial<BaselineInput> = {})
 
 function makeFuture(body: InputUploadRequest): FutureWatchItem {
   return {
-    id:            uuidv4(),
-    expected_time: body.effective_time_range?.start ?? body.time_key,
-    event_type:    (body.payload?.['event_type'] as string) ?? 'generic',
-    title:         body.title,
-    payload:       body.payload ?? {},
-    certainty:     (body.payload?.['certainty'] as FutureWatchItem['certainty']) ?? 'medium',
-    impact_level:  body.confidence ?? 0.5,
-    review_status: 'pending',
+    id:                uuidv4(),
+    expected_time:     body.effective_time_range?.start ?? body.time_key,
+    expected_end_time: body.effective_time_range?.end,
+    event_type:        (body.payload?.['event_type'] as string) ?? 'generic',
+    title:             body.title,
+    payload:           body.payload ?? {},
+    certainty:         (body.payload?.['certainty'] as FutureWatchItem['certainty']) ?? 'medium',
+    impact_level:      body.confidence ?? 0.5,
+    review_status:     'pending',
     linked_snapshot_time_key: body.time_key,
-    created_at:    new Date().toISOString(),
+    created_at:        new Date().toISOString(),
   };
 }
 
@@ -128,8 +129,10 @@ router.get('/timeline', (req: Request, res: Response) => {
       snapshot:     s,
       inputs_count: (s.summary['input_count'] as number) ?? 0,
       future_items: [],
+      active_events: getActiveFutureItemsByDate(s.time_key),
       highlight:    s.time_key === today,
     });
+
   }
 
   for (const fi of futures) {

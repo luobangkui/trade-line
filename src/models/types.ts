@@ -73,7 +73,8 @@ export interface BaselineRelation {
 
 export interface FutureWatchItem {
   id: string;
-  expected_time: string;
+  expected_time: string;       // 事件开始时间（ISO8601）
+  expected_end_time?: string;  // 事件结束时间（ISO8601），有时间范围的事件必填
   event_type: string;
   title: string;
   payload: Record<string, unknown>;
@@ -103,7 +104,8 @@ export interface TimelineNode {
   is_future: boolean;
   snapshot?: BaselineSnapshot;
   inputs_count: number;
-  future_items: FutureWatchItem[];
+  future_items: FutureWatchItem[];   // 即将到来的未来事件（在该日期之后 7 天内）
+  active_events?: FutureWatchItem[]; // 当天正在进行中的事件（start <= date <= end）
   highlight: boolean;
 }
 

@@ -101,6 +101,16 @@ export function getAllFutureItems(): FutureWatchItem[] {
   return load().future_watchlist;
 }
 
+// 查询某日期处于"进行中"的未来事件（start <= date <= end）
+export function getActiveFutureItemsByDate(date: string): FutureWatchItem[] {
+  return load().future_watchlist.filter((f) => {
+    if (f.review_status === 'expired') return false;
+    const start = f.expected_time.slice(0, 10);
+    const end = f.expected_end_time ? f.expected_end_time.slice(0, 10) : start;
+    return start <= date && date <= end;
+  });
+}
+
 export function updateFutureItemStatus(id: string, status: FutureWatchItem['review_status']): void {
   const db = load();
   const item = db.future_watchlist.find((f) => f.id === id);

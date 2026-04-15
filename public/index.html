@@ -182,9 +182,36 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
 
 .event-list, .future-list, .input-list { list-style: none; display: flex; flex-direction: column; gap: 5px; }
 .event-item { font-size: 12px; color: var(--muted); padding: 5px 8px; background: var(--bg3); border-radius: 5px; line-height: 1.4; }
-.future-item { font-size: 12px; padding: 6px 8px; background: var(--bg3); border-radius: 5px; border-left: 2px solid var(--accent); }
-.future-item .fi-date { color: var(--muted); font-size: 10px; margin-bottom: 2px; }
-.future-item .fi-title { color: var(--text); }
+.future-item { font-size: 12px; padding: 8px 10px; background: var(--bg3); border-radius: 6px; border-left: 3px solid var(--accent); }
+.future-item .fi-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; flex-wrap: wrap; }
+.future-item .fi-title { color: var(--text); font-size: 12px; line-height: 1.4; margin-bottom: 4px; }
+.future-item .fi-range { font-size: 10px; color: var(--muted); margin-bottom: 5px; }
+.future-item .fi-progress-wrap { height: 4px; background: var(--bg2); border-radius: 2px; overflow: hidden; }
+.future-item .fi-progress-fill { height: 100%; border-radius: 2px; background: var(--accent); transition: width .3s; }
+.future-item .fi-progress-label { font-size: 10px; color: var(--muted); margin-top: 3px; text-align: right; }
+
+.active-event-item { font-size: 12px; padding: 8px 10px; background: var(--bg3); border-radius: 6px; border-left: 3px solid #22c55e; }
+.active-event-item .ae-badge { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: #052e16; color: #22c55e; display: inline-block; margin-bottom: 4px; }
+.active-event-item .ae-title { color: var(--text); font-size: 12px; line-height: 1.4; margin-bottom: 4px; }
+.active-event-item .ae-range { font-size: 10px; color: var(--muted); margin-bottom: 5px; }
+.active-event-item .ae-progress-wrap { height: 6px; background: var(--bg2); border-radius: 3px; overflow: hidden; position: relative; }
+.active-event-item .ae-progress-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #22c55e66, #22c55e); }
+.active-event-item .ae-progress-today { position: absolute; top: 0; width: 2px; height: 100%; background: #fff; border-radius: 1px; }
+.active-event-item .ae-progress-label { font-size: 10px; color: var(--muted); margin-top: 3px; display: flex; justify-content: space-between; }
+
+/* Future Events Gantt */
+.gantt-section { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.gantt-title { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; }
+.gantt-item { margin-bottom: 10px; }
+.gantt-item-header { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; flex-wrap: wrap; }
+.gantt-item-title { font-size: 11px; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gantt-bar-row { display: flex; align-items: center; gap: 6px; }
+.gantt-bar-wrap { flex: 1; height: 8px; background: var(--bg3); border-radius: 4px; overflow: hidden; position: relative; }
+.gantt-bar-fill { height: 100%; border-radius: 4px; }
+.gantt-bar-today { position: absolute; top: 0; height: 100%; width: 2px; background: #fff8; }
+.gantt-bar-pct { font-size: 10px; color: var(--muted); white-space: nowrap; min-width: 30px; text-align: right; }
+.gantt-date-range { font-size: 10px; color: var(--muted); margin-top: 1px; }
+.gantt-empty { font-size: 11px; color: var(--muted); opacity: .6; }
 
 .input-item { background: var(--bg3); border-radius: 5px; padding: 7px 9px; }
 .input-meta { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
@@ -258,6 +285,11 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
       </div>
     </div>
 
+    <div class="sidebar-section gantt-section">
+      <div class="gantt-title">未来事件轴</div>
+      <div id="sidebar-gantt"><div class="gantt-empty">加载中…</div></div>
+    </div>
+
     <div class="sidebar-section">
       <div class="sidebar-title">按阶段筛选</div>
       <div id="filter-list">
@@ -323,14 +355,21 @@ const STAGE_META = {
 let timelineData = null;
 let selectedDate = null;
 let activeFilter = 'all';
+let allFutureEvents = [];
 
 async function loadTimeline() {
   const end = offsetDate(new Date(), 14);
   const start = offsetDate(new Date(), -45);
-  const res = await fetch(`/api/baseline/timeline?start=${start}&end=${end}`);
+  const [res, fRes] = await Promise.all([
+    fetch(`/api/baseline/timeline?start=${start}&end=${end}`),
+    fetch('/api/baseline/future'),
+  ]);
   timelineData = await res.json();
+  const fData = await fRes.json();
+  allFutureEvents = Array.isArray(fData) ? fData.filter(f => f.review_status !== 'expired') : [];
   renderSidebar();
   renderTimeline();
+  renderGanttSidebar();
   updateTopbar();
   document.getElementById('loading').classList.add('hidden');
   // 默认滚动到今天
@@ -363,6 +402,53 @@ function updateTopbar() {
     document.getElementById('stat-pos').textContent =
       `${Math.round(snap.position_min*100)}% – ${Math.round(snap.position_max*100)}%`;
   }
+}
+
+function renderGanttSidebar() {
+  const el = document.getElementById('sidebar-gantt');
+  if (!el) return;
+  if (!allFutureEvents.length) {
+    el.innerHTML = '<div class="gantt-empty">暂无未来事件</div>';
+    return;
+  }
+  const todayStr = offsetDate(new Date(), 0);
+  const today = new Date(todayStr).getTime();
+  el.innerHTML = allFutureEvents.map(f => {
+    const startStr = f.expected_time.slice(0, 10);
+    const endStr = f.expected_end_time ? f.expected_end_time.slice(0, 10) : '';
+    const start = new Date(startStr).getTime();
+    const end = endStr ? new Date(endStr).getTime() : start;
+    const hasRange = endStr && endStr !== startStr;
+    const certaintyColor = f.certainty === 'high' ? '#22c55e' : f.certainty === 'medium' ? '#eab308' : '#94a3b8';
+    let barHtml = '';
+    if (hasRange) {
+      const total = end - start;
+      const elapsed = today - start;
+      const pct = Math.max(0, Math.min(100, Math.round(elapsed / total * 100)));
+      const statusLabel = today < start ? '未开始' : today > end ? '已结束' : `${pct}%`;
+      barHtml = `
+        <div class="gantt-bar-row">
+          <div class="gantt-bar-wrap">
+            <div class="gantt-bar-fill" style="width:${pct}%;background:${certaintyColor}77"></div>
+            ${today >= start && today <= end ? `<div class="gantt-bar-today" style="left:${pct}%"></div>` : ''}
+          </div>
+          <div class="gantt-bar-pct">${statusLabel}</div>
+        </div>
+        <div class="gantt-date-range">${startStr} ~ ${endStr.slice(5)}</div>
+      `;
+    } else {
+      barHtml = `<div class="gantt-date-range">📅 ${startStr}</div>`;
+    }
+    return `
+      <div class="gantt-item">
+        <div class="gantt-item-header">
+          <span style="font-size:9px;padding:1px 5px;border-radius:6px;background:${certaintyColor}22;color:${certaintyColor}">${f.event_type}</span>
+          <span class="gantt-item-title" title="${f.title}">${f.title}</span>
+        </div>
+        ${barHtml}
+      </div>
+    `;
+  }).join('');
 }
 
 function renderSidebar() {
@@ -483,10 +569,10 @@ async function selectNode(date) {
   const inputs = inputsRes.ok ? await inputsRes.json() : [];
   const futureNode = timelineData?.nodes.find(n => n.date === date);
 
-  renderDetail(date, snap, inputs, futureNode?.future_items || []);
+  renderDetail(date, snap, inputs, futureNode?.future_items || [], futureNode);
 }
 
-function renderDetail(date, snap, inputs, futureItems) {
+function renderDetail(date, snap, inputs, futureItems, futureNode) {
   const body = document.getElementById('detail-body');
   if (!snap && !inputs.length && !futureItems.length) {
     body.innerHTML = '<div class="empty-hint">暂无数据</div>';
@@ -547,28 +633,82 @@ function renderDetail(date, snap, inputs, futureItems) {
     </div>
   ` : '';
 
-  const futureHtml = futureItems.length ? `
+  // 进行中的未来事件（当天处于事件时间范围内）
+  const activeEvents = futureNode?.active_events || [];
+  const activeHtml = activeEvents.length ? `
     <div class="detail-section">
-      <div class="detail-section-title">未来观察项 🔔</div>
+      <div class="detail-section-title">📌 当日进行中的事件</div>
       <ul class="future-list">
-        ${futureItems.map(f => `
-          <li class="future-item">
-            <div class="fi-date">${f.expected_time.slice(0,10)} · ${f.event_type} · ${f.certainty}</div>
-            <div class="fi-title">${f.title}</div>
-          </li>
-        `).join('')}
+        ${activeEvents.map(f => {
+          const start = f.expected_time.slice(0,10);
+          const end = f.expected_end_time ? f.expected_end_time.slice(0,10) : start;
+          const hasRange = end !== start;
+          let progressHtml = '';
+          if (hasRange) {
+            const startMs = new Date(start).getTime();
+            const endMs = new Date(end).getTime();
+            const dateMs = new Date(date).getTime();
+            const total = endMs - startMs;
+            const elapsed = Math.min(dateMs - startMs, total);
+            const pct = total > 0 ? Math.round(elapsed / total * 100) : 0;
+            const daysTotal = Math.round(total / 86400000);
+            const daysIn = Math.round(elapsed / 86400000);
+            progressHtml = `
+              <div class="ae-range">📅 ${start} ~ ${end}（共 ${daysTotal} 天）</div>
+              <div class="ae-progress-wrap">
+                <div class="ae-progress-fill" style="width:${pct}%"></div>
+                <div class="ae-progress-today" style="left:${pct}%"></div>
+              </div>
+              <div class="ae-progress-label">
+                <span>开始</span>
+                <span>第 ${daysIn} 天 / ${pct}%</span>
+                <span>结束</span>
+              </div>
+            `;
+          } else {
+            progressHtml = `<div class="ae-range">📅 ${start}</div>`;
+          }
+          const certaintyColor = f.certainty === 'high' ? '#22c55e' : f.certainty === 'medium' ? '#eab308' : '#94a3b8';
+          return `
+            <li class="active-event-item">
+              <div class="ae-badge" style="background:${certaintyColor}22;color:${certaintyColor}">
+                ${f.event_type} · ${f.certainty === 'high' ? '高确定性' : f.certainty === 'medium' ? '中确定性' : '低确定性'}
+              </div>
+              <div class="ae-title">${f.title}</div>
+              ${progressHtml}
+            </li>
+          `;
+        }).join('')}
       </ul>
     </div>
   ` : '';
 
-  const watchHtml = snap?.future_watch_items?.length ? `
+  // 即将到来的未来事件（未来 7 天内）
+  const futureHtml = futureItems.length ? `
     <div class="detail-section">
-      <div class="detail-section-title">近期关注</div>
+      <div class="detail-section-title">🔔 近 7 天观察项</div>
       <ul class="future-list">
-        ${snap.future_watch_items.map(fw => `<li class="future-item"><div class="fi-title">${fw}</div></li>`).join('')}
+        ${futureItems.map(f => {
+          const start = f.expected_time.slice(0,10);
+          const end = f.expected_end_time ? f.expected_end_time.slice(0,10) : '';
+          const rangeStr = end && end !== start ? `${start} ~ ${end.slice(5)}` : start;
+          const certaintyColor = f.certainty === 'high' ? '#22c55e' : f.certainty === 'medium' ? '#eab308' : '#94a3b8';
+          return `
+            <li class="future-item">
+              <div class="fi-header">
+                <span class="src-badge" style="border-color:${certaintyColor}44;color:${certaintyColor}">${f.certainty === 'high' ? '高确定' : f.certainty === 'medium' ? '中确定' : '低确定'}</span>
+                <span class="src-badge">${f.event_type}</span>
+              </div>
+              <div class="fi-title">${f.title}</div>
+              <div class="fi-range">📅 ${rangeStr}</div>
+            </li>
+          `;
+        }).join('')}
       </ul>
     </div>
   ` : '';
+
+  const watchHtml = '';
 
   const inputsHtml = inputs.length ? `
     <div class="detail-section">
@@ -597,7 +737,7 @@ function renderDetail(date, snap, inputs, futureItems) {
     </div>
   `;
 
-  body.innerHTML = stageHtml + emotionHtml + summaryHtml + eventsHtml + stylesHtml + futureHtml + watchHtml + inputsHtml + btnHtml;
+  body.innerHTML = stageHtml + emotionHtml + summaryHtml + eventsHtml + stylesHtml + activeHtml + futureHtml + inputsHtml + btnHtml;
 }
 
 async function reaggregate(date) {
@@ -605,7 +745,7 @@ async function reaggregate(date) {
   if (btn) { btn.textContent = '聚合中...'; btn.classList.add('loading'); }
   await fetch(`/api/baseline/aggregate/${date}`, { method: 'POST' });
   await loadTimeline();
-  selectNode(date);
+  await selectNode(date);
 }
 
 function closeDetail() {
