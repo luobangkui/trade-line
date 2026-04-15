@@ -213,6 +213,25 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
 .gantt-date-range { font-size: 10px; color: var(--muted); margin-top: 1px; }
 .gantt-empty { font-size: 11px; color: var(--muted); opacity: .6; }
 
+/* Gantt tooltip */
+.gantt-item { position: relative; cursor: default; }
+.gantt-tooltip {
+  display: none;
+  position: fixed;
+  z-index: 9999;
+  max-width: 260px;
+  background: #1e2433;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: 0 8px 24px #0008;
+  pointer-events: none;
+}
+.gantt-tooltip.show { display: block; }
+.gantt-tooltip-title { font-size: 12px; color: var(--text); font-weight: 500; line-height: 1.5; margin-bottom: 6px; }
+.gantt-tooltip-row { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+.gantt-tooltip-row b { color: #94a3b8; }
+
 .input-item { background: var(--bg3); border-radius: 5px; padding: 7px 9px; }
 .input-meta { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
 .src-badge { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: var(--bg2); color: var(--muted); border: 1px solid var(--border); }
@@ -440,10 +459,10 @@ function renderGanttSidebar() {
       barHtml = `<div class="gantt-date-range">📅 ${startStr}</div>`;
     }
     return `
-      <div class="gantt-item">
+      <div class="gantt-item" data-gf="${encodeURIComponent(JSON.stringify(f))}" onmouseenter="showGanttTooltip(this)" onmouseleave="hideGanttTooltip()">
         <div class="gantt-item-header">
           <span style="font-size:9px;padding:1px 5px;border-radius:6px;background:${certaintyColor}22;color:${certaintyColor}">${f.event_type}</span>
-          <span class="gantt-item-title" title="${f.title}">${f.title}</span>
+          <span class="gantt-item-title">${f.title}</span>
         </div>
         ${barHtml}
       </div>
@@ -755,6 +774,66 @@ function closeDetail() {
 }
 
 loadTimeline();
+</script>
+<div class="gantt-tooltip" id="gantt-tooltip">
+  <div class="gantt-tooltip-title" id="gtt-title"></div>
+  <div class="gantt-tooltip-row" id="gtt-range"></div>
+  <div class="gantt-tooltip-row" id="gtt-phase"></div>
+  <div class="gantt-tooltip-row" id="gtt-note"></div>
+</div>
+<script>
+(function() {
+  const tooltip = document.getElementById('gantt-tooltip');
+  const ttTitle = document.getElementById('gtt-title');
+  const ttRange = document.getElementById('gtt-range');
+  const ttPhase = document.getElementById('gtt-phase');
+  const ttNote  = document.getElementById('gtt-note');
+  let showTimer = null;
+
+  document.addEventListener('mousemove', function(e) {
+    if (tooltip.classList.contains('show')) {
+      const x = e.clientX + 14;
+      const y = e.clientY + 14;
+      const tw = tooltip.offsetWidth;
+      const th = tooltip.offsetHeight;
+      tooltip.style.left = (x + tw > window.innerWidth  ? e.clientX - tw - 8 : x) + 'px';
+      tooltip.style.top  = (y + th > window.innerHeight ? e.clientY - th - 8 : y) + 'px';
+    }
+  });
+
+  window.showGanttTooltip = function(el) {
+    clearTimeout(showTimer);
+    showTimer = setTimeout(function() {
+      let f;
+      try { f = JSON.parse(decodeURIComponent(el.dataset.gf || '')); } catch(e) { return; }
+
+      const startStr = f.expected_time ? f.expected_time.slice(0,10) : '';
+      const endStr   = f.expected_end_time ? f.expected_end_time.slice(0,10) : '';
+      const phase    = f.payload && f.payload.phase ? f.payload.phase : '';
+      const note     = f.payload && f.payload.note  ? f.payload.note  : '';
+      const sponsor  = f.payload && f.payload.sponsor ? '　辅导机构：' + f.payload.sponsor : '';
+      const milestones = f.payload && f.payload.milestones
+        ? Object.entries(f.payload.milestones).map(([k,v]) => k + ': ' + v).join(' | ')
+        : '';
+
+      ttTitle.textContent = f.title;
+      ttRange.innerHTML  = startStr ? '<b>时间区间：</b>' + startStr + (endStr ? ' ~ ' + endStr : '') : '';
+      ttPhase.innerHTML  = phase ? '<b>当前阶段：</b>' + phase + sponsor : '';
+      ttNote.innerHTML   = (note || milestones) ? '<b>备注：</b>' + (note || milestones) : '';
+
+      ttRange.style.display = startStr ? '' : 'none';
+      ttPhase.style.display = phase ? '' : 'none';
+      ttNote.style.display  = (note || milestones) ? '' : 'none';
+
+      tooltip.classList.add('show');
+    }, 120);
+  };
+
+  window.hideGanttTooltip = function() {
+    clearTimeout(showTimer);
+    tooltip.classList.remove('show');
+  };
+})();
 </script>
 </body>
 </html>
