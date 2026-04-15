@@ -479,41 +479,26 @@ function renderGanttSidebar() {
   const todayStr = offsetDate(new Date(), 0);
   const today = new Date(todayStr).getTime();
 
-  const certWeight = { high: 3, medium: 2, low: 1 };
+  const certPenalty = { high: 0, medium: 100, low: 300 };
   const DAY = 86400000;
 
-  // 排序：进行中 > 即将开始（越近越前）> 已结束；同组内确定性高优先
-  const sorted = [...allFutureEvents].sort((a, b) => {
-    const aStart = new Date(a.expected_time.slice(0, 10)).getTime();
-    const bStart = new Date(b.expected_time.slice(0, 10)).getTime();
-    const aEnd   = a.expected_end_time ? new Date(a.expected_end_time.slice(0, 10)).getTime() : aStart;
-    const bEnd   = b.expected_end_time ? new Date(b.expected_end_time.slice(0, 10)).getTime() : bStart;
+  // 综合评分（分越低优先级越高）：
+  //   score = 确定性惩罚 + 时间紧迫度（天数）
+  //   - 进行中事件：紧迫度 = 剩余天数（快结束=更紧迫）
+  //   - 未来事件：紧迫度 = 距开始天数（越近=更紧迫）
+  //   - 已结束：直接沉底
+  function urgencyScore(f) {
+    const start = new Date(f.expected_time.slice(0, 10)).getTime();
+    const end   = f.expected_end_time ? new Date(f.expected_end_time.slice(0, 10)).getTime() : start;
+    const cert  = certPenalty[f.certainty] ?? 200;
+    if (end < today) return 999999; // 已结束，沉底
+    const timeFactor = today >= start
+      ? Math.round((end - today) / DAY)          // 进行中：剩余天数
+      : Math.round((start - today) / DAY);       // 未来：距开始天数
+    return cert + timeFactor;
+  }
 
-    const aActive = aStart <= today && today <= aEnd;
-    const bActive = bStart <= today && today <= bEnd;
-    const aEnded  = aEnd < today;
-    const bEnded  = bEnd < today;
-
-    // 分组权重：进行中=2，未来=1，已结束=0
-    const groupA = aActive ? 2 : aEnded ? 0 : 1;
-    const groupB = bActive ? 2 : bEnded ? 0 : 1;
-    if (groupA !== groupB) return groupB - groupA;
-
-    // 同为"进行中"：剩余天数少的优先（快结束的更紧迫）
-    if (aActive && bActive) {
-      const remainA = Math.round((aEnd - today) / DAY);
-      const remainB = Math.round((bEnd - today) / DAY);
-      if (remainA !== remainB) return remainA - remainB;
-    }
-
-    // 同为"未来"：开始越近越优先
-    if (!aActive && !aEnded && !bActive && !bEnded) {
-      if (aStart !== bStart) return aStart - bStart;
-    }
-
-    // 同组同距离：确定性高优先
-    return (certWeight[b.certainty] || 0) - (certWeight[a.certainty] || 0);
-  });
+  const sorted = [...allFutureEvents].sort((a, b) => urgencyScore(a) - urgencyScore(b));
 
   el.innerHTML = sorted.map(f => {
     const startStr = f.expected_time.slice(0, 10);
