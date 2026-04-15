@@ -80,6 +80,14 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
 
 /* ── Timeline ── */
 #timeline-wrap { flex: 1; overflow-y: auto; padding: 24px 0; display: flex; flex-direction: column; align-items: center; scroll-behavior: smooth; }
+/* 顶部和底部各留半屏高度，让任意节点都能滚到正中央 */
+#timeline::before,
+#timeline::after {
+  content: '';
+  display: block;
+  height: 45vh;
+  pointer-events: none;
+}
 #timeline { position: relative; width: 100%; max-width: 600px; overflow: visible; }
 
 .tl-axis { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: var(--border); transform: translateX(-50%); }
