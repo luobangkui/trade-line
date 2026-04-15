@@ -282,26 +282,34 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
 .input-item { background: var(--bg3); border-radius: 5px; padding: 7px 9px; cursor: default; position: relative; }
 .input-item:hover { background: #1e2a3a; }
 
-/* Input tooltip */
+/* Input tooltip — sticky, hoverable */
 .input-tooltip {
   display: none;
   position: fixed;
   z-index: 9999;
-  max-width: 300px;
-  background: #1e2433;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 13px;
-  box-shadow: 0 8px 28px #0009;
-  pointer-events: none;
-  font-size: 11px;
-  line-height: 1.6;
+  width: 340px;
+  max-height: 420px;
+  background: #1a2133;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 13px 15px 12px;
+  box-shadow: 0 12px 40px #000b;
+  pointer-events: auto;
+  font-size: 12px;
+  line-height: 1.65;
+  overflow-y: auto;
 }
 .input-tooltip.show { display: block; }
-.itp-title { font-size: 12px; color: var(--text); font-weight: 500; margin-bottom: 7px; line-height: 1.5; }
-.itp-row { color: var(--muted); margin-top: 2px; }
-.itp-row b { color: #94a3b8; margin-right: 4px; }
-.itp-payload { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); color: #64748b; font-family: monospace; font-size: 10px; white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow-y: auto; }
+.itp-title { font-size: 13px; color: #e2e8f0; font-weight: 600; margin-bottom: 9px; line-height: 1.5; }
+.itp-row { color: #94a3b8; margin-top: 3px; }
+.itp-row b { color: #cbd5e1; margin-right: 5px; }
+.itp-payload {
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid #2d3748;
+  color: #64748b; font-family: monospace; font-size: 11px;
+  white-space: pre-wrap; word-break: break-all;
+  max-height: 180px; overflow-y: auto;
+  background: #111827; border-radius: 5px; padding: 8px;
+}
 .input-meta { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
 .src-badge { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: var(--bg2); color: var(--muted); border: 1px solid var(--border); }
 .input-title { font-size: 12px; color: var(--text); line-height: 1.3; }
@@ -911,51 +919,65 @@ loadTimeline();
 </div>
 <script>
 (function() {
-  // ── Input tooltip ──
-  const itp      = document.getElementById('input-tooltip');
-  let itpTimer   = null;
+  // ── Input tooltip（粘性，可移入浮层操作）──
+  const itp    = document.getElementById('input-tooltip');
+  let itpTimer = null;
+  let itpPinned = false;  // 鼠标在浮层内时保持展开
 
-  document.addEventListener('mousemove', function(e) {
-    if (itp.classList.contains('show')) {
-      const x = e.clientX + 16, y = e.clientY + 14;
-      itp.style.left = (x + itp.offsetWidth  > window.innerWidth  ? e.clientX - itp.offsetWidth  - 8 : x) + 'px';
-      itp.style.top  = (y + itp.offsetHeight > window.innerHeight ? e.clientY - itp.offsetHeight - 8 : y) + 'px';
-    }
-  });
+  // 浮层本身 hover 时保持展开
+  itp.addEventListener('mouseenter', () => { itpPinned = true;  clearTimeout(itpTimer); });
+  itp.addEventListener('mouseleave', () => { itpPinned = false; scheduleHideItp(); });
+
+  function scheduleHideItp(delay) {
+    clearTimeout(itpTimer);
+    itpTimer = setTimeout(() => { if (!itpPinned) itp.classList.remove('show'); }, delay ?? 200);
+  }
+
+  function positionItp(anchorEl) {
+    const rect = anchorEl.getBoundingClientRect();
+    const w = itp.offsetWidth || 340;
+    const h = itp.offsetHeight || 300;
+    // 优先放在触发元素右侧；空间不够则放左侧
+    let left = rect.right + 10;
+    if (left + w > window.innerWidth - 8) left = rect.left - w - 10;
+    // 垂直对齐触发元素顶部，超出屏幕则上移
+    let top = rect.top;
+    if (top + h > window.innerHeight - 8) top = window.innerHeight - h - 8;
+    itp.style.left = Math.max(8, left) + 'px';
+    itp.style.top  = Math.max(8, top)  + 'px';
+  }
 
   window.showInputTooltip = function(el) {
     clearTimeout(itpTimer);
-    itpTimer = setTimeout(function() {
-      let inp;
-      try { inp = JSON.parse(decodeURIComponent(el.dataset.inp || '')); } catch(e) { return; }
+    let inp;
+    try { inp = JSON.parse(decodeURIComponent(el.dataset.inp || '')); } catch(e) { return; }
 
-      document.getElementById('itp-title').textContent = inp.title || '—';
+    document.getElementById('itp-title').textContent = inp.title || '—';
 
-      const set = (id, label, val) => {
-        const el = document.getElementById(id);
-        if (val) { el.innerHTML = `<b>${label}</b>${val}`; el.style.display = ''; }
-        else el.style.display = 'none';
-      };
+    const set = (id, label, val) => {
+      const row = document.getElementById(id);
+      if (val !== '' && val != null) { row.innerHTML = `<b>${label}</b>${val}`; row.style.display = ''; }
+      else row.style.display = 'none';
+    };
+    set('itp-source',   '来源：',   inp.source || '');
+    set('itp-type',     '类型：',   inp.data_type || '');
+    set('itp-conf',     '置信度：', inp.confidence != null ? (inp.confidence * 100).toFixed(0) + '%' : '');
+    set('itp-priority', '优先级：', inp.priority != null ? String(inp.priority) : '');
+    set('itp-time',     '时间：',   inp.time_key || '');
 
-      set('itp-source',   '来源：',   inp.source);
-      set('itp-type',     '类型：',   inp.data_type);
-      set('itp-conf',     '置信度：', inp.confidence != null ? (inp.confidence * 100).toFixed(0) + '%' : '');
-      set('itp-priority', '优先级：', inp.priority != null ? inp.priority : '');
-      set('itp-time',     '时间：',   inp.time_key || '');
+    const payloadEl = document.getElementById('itp-payload');
+    const payload = inp.payload && Object.keys(inp.payload).length
+      ? JSON.stringify(inp.payload, null, 2) : '';
+    if (payload) { payloadEl.textContent = payload; payloadEl.style.display = ''; }
+    else payloadEl.style.display = 'none';
 
-      const payload = inp.payload && Object.keys(inp.payload).length
-        ? JSON.stringify(inp.payload, null, 2) : '';
-      const payloadEl = document.getElementById('itp-payload');
-      if (payload) { payloadEl.textContent = payload; payloadEl.style.display = ''; }
-      else payloadEl.style.display = 'none';
-
-      itp.classList.add('show');
-    }, 100);
+    itp.classList.add('show');
+    // 定位（先 show 再定位，拿到实际尺寸）
+    requestAnimationFrame(() => positionItp(el));
   };
 
   window.hideInputTooltip = function() {
-    clearTimeout(itpTimer);
-    itp.classList.remove('show');
+    scheduleHideItp(180);
   };
 })();
 
