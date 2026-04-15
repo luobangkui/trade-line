@@ -134,6 +134,39 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
 /* Future node */
 .tl-card.future-card { opacity: .75; border-style: dashed; }
 
+/* ── Selected / Focus spotlight ── */
+/* 有选中状态时，非选中节点淡出缩小 */
+#timeline.has-selection .tl-node-wrap:not(.active-node) {
+  opacity: 0.32;
+  transform: scale(0.97);
+  transition: opacity .3s ease, transform .3s ease;
+}
+/* 选中节点放大 + 高亮 */
+#timeline.has-selection .tl-node-wrap.active-node {
+  opacity: 1;
+  transform: scale(1.0);
+  transition: opacity .3s ease, transform .3s ease;
+  z-index: 10;
+  position: relative;
+}
+#timeline.has-selection .tl-node-wrap.active-node .tl-card:first-child {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent)55, 0 8px 32px #0007;
+  transform: scale(1.045);
+  transform-origin: center;
+  transition: transform .3s cubic-bezier(.34,1.56,.64,1), box-shadow .3s ease;
+  background: #1a2235;
+}
+#timeline.has-selection .tl-node-wrap.active-node .tl-shape .shape-circle,
+#timeline.has-selection .tl-node-wrap.active-node .tl-shape .shape-diamond,
+#timeline.has-selection .tl-node-wrap.active-node .tl-shape .shape-triangle {
+  filter: drop-shadow(0 0 6px currentColor);
+}
+#timeline.has-selection .tl-node-wrap.active-node .tl-shape .shape-circle { width: 22px; height: 22px; border-width: 4px; transition: all .3s ease; }
+#timeline.has-selection .tl-node-wrap.active-node .tl-shape .shape-diamond { width: 20px; height: 20px; border-width: 4px; transition: all .3s ease; }
+#timeline.has-selection .tl-node-wrap.active-node .card-stage { font-size: 15px; }
+#timeline.has-selection .tl-node-wrap.active-node .card-date { font-size: 12px; color: var(--text); }
+
 /* ── Detail Panel ── */
 #detail {
   width: var(--detail); background: var(--bg2); border-left: 1px solid var(--border);
@@ -391,11 +424,10 @@ async function loadTimeline() {
   renderGanttSidebar();
   updateTopbar();
   document.getElementById('loading').classList.add('hidden');
-  // 默认滚动到今天
-  setTimeout(() => {
-    const el = document.querySelector('.today-card');
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, 100);
+  // 默认选中今天，触发聚光灯效果
+  if (timelineData.today) {
+    setTimeout(() => selectNode(timelineData.today), 150);
+  }
 }
 
 function offsetDate(d, days) {
@@ -572,9 +604,24 @@ function setFilter(filter, btn) {
 
 async function selectNode(date) {
   selectedDate = date;
+
+  // 侧边日期列表高亮
   document.querySelectorAll('.date-item').forEach(el => {
     el.classList.toggle('selected', el.dataset.date === date);
   });
+
+  // 时间轴聚光灯效果
+  const timeline = document.getElementById('timeline');
+  timeline.classList.add('has-selection');
+  document.querySelectorAll('.tl-node-wrap').forEach(wrap => {
+    const isActive = wrap.dataset.date === date;
+    wrap.classList.toggle('active-node', isActive);
+    if (isActive) {
+      // 滚动到视口正中央
+      setTimeout(() => wrap.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+    }
+  });
+
   document.getElementById('detail').classList.add('open');
   document.getElementById('detail-date').textContent = date;
   document.getElementById('detail-body').innerHTML = '<div class="empty-hint">加载中...</div>';
@@ -771,6 +818,9 @@ function closeDetail() {
   document.getElementById('detail').classList.remove('open');
   selectedDate = null;
   document.querySelectorAll('.date-item').forEach(el => el.classList.remove('selected'));
+  // 取消聚光灯
+  document.getElementById('timeline').classList.remove('has-selection');
+  document.querySelectorAll('.tl-node-wrap').forEach(wrap => wrap.classList.remove('active-node'));
 }
 
 loadTimeline();
