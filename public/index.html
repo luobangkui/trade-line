@@ -849,24 +849,30 @@ function renderDetail(date, snap, inputs, futureItems, futureNode) {
 
   const watchHtml = '';
 
+  const renderInputItem = inp => `
+    <li class="input-item"
+        data-inp="${encodeURIComponent(JSON.stringify(inp))}"
+        onmouseenter="showInputTooltip(this)"
+        onmouseleave="hideInputTooltip()">
+      <div class="input-meta">
+        <span class="src-badge">${inp.source}</span>
+        <span class="src-badge">${inp.data_type}</span>
+        <span class="src-badge">conf ${(inp.confidence*100).toFixed(0)}%</span>
+      </div>
+      <div class="input-title">${inp.title}</div>
+    </li>`;
+
   const inputsHtml = inputs.length ? `
     <div class="detail-section">
       <div class="detail-section-title">原子输入 (${inputs.length})</div>
-      <ul class="input-list">
-        ${inputs.slice(0,8).map(inp => `
-          <li class="input-item"
-              data-inp="${encodeURIComponent(JSON.stringify(inp))}"
-              onmouseenter="showInputTooltip(this)"
-              onmouseleave="hideInputTooltip()">
-            <div class="input-meta">
-              <span class="src-badge">${inp.source}</span>
-              <span class="src-badge">${inp.data_type}</span>
-              <span class="src-badge">conf ${(inp.confidence*100).toFixed(0)}%</span>
-            </div>
-            <div class="input-title">${inp.title}</div>
-          </li>
-        `).join('')}
-        ${inputs.length > 8 ? `<li class="event-item" style="text-align:center">... 还有 ${inputs.length-8} 条</li>` : ''}
+      <ul class="input-list" id="input-list-ul">
+        ${inputs.slice(0, 8).map(renderInputItem).join('')}
+        ${inputs.length > 8 ? `
+          <li id="input-show-more"
+              style="text-align:center;padding:7px 0;cursor:pointer;color:var(--accent);font-size:12px;border-radius:5px;background:var(--bg3)"
+              onclick="expandInputList(${JSON.stringify(inputs.map(i => encodeURIComponent(JSON.stringify(i))))})">
+            ▾ 展开查看全部 ${inputs.length} 条
+          </li>` : ''}
       </ul>
     </div>
   ` : '';
@@ -888,6 +894,29 @@ async function reaggregate(date) {
   await fetch(`/api/baseline/aggregate/${date}`, { method: 'POST' });
   await loadTimeline();
   await selectNode(date);
+}
+
+function expandInputList(encodedList) {
+  const ul = document.getElementById('input-list-ul');
+  const btn = document.getElementById('input-show-more');
+  if (!ul || !btn) return;
+  // 追加剩余 items（从第9条开始）
+  const allItems = encodedList.slice(8).map(enc => {
+    let inp; try { inp = JSON.parse(decodeURIComponent(enc)); } catch(e) { return ''; }
+    return `<li class="input-item"
+        data-inp="${enc}"
+        onmouseenter="showInputTooltip(this)"
+        onmouseleave="hideInputTooltip()">
+      <div class="input-meta">
+        <span class="src-badge">${inp.source}</span>
+        <span class="src-badge">${inp.data_type}</span>
+        <span class="src-badge">conf ${(inp.confidence*100).toFixed(0)}%</span>
+      </div>
+      <div class="input-title">${inp.title}</div>
+    </li>`;
+  }).join('');
+  btn.insertAdjacentHTML('beforebegin', allItems);
+  btn.remove();
 }
 
 function closeDetail() {
