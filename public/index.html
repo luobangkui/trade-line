@@ -79,42 +79,59 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
 .date-item .di-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 
 /* ── Timeline ── */
-#timeline-wrap { flex: 1; overflow-y: auto; padding: 24px 0; display: flex; flex-direction: column; align-items: center; scroll-behavior: smooth; }
-/* 顶部和底部各留半屏高度，让任意节点都能滚到正中央 */
-#timeline::before,
-#timeline::after {
-  content: '';
-  display: block;
-  height: 45vh;
-  pointer-events: none;
+/* ── 横向时间轴 ── */
+#timeline-wrap {
+  flex: 1; overflow-x: auto; overflow-y: hidden;
+  display: flex; align-items: stretch;
+  height: 100%;
 }
-#timeline { position: relative; width: 100%; max-width: 600px; overflow: visible; }
+#timeline {
+  display: flex; flex-direction: row; align-items: center;
+  position: relative; height: 100%; min-height: 520px;
+}
+/* 左右各留半屏宽，让首尾节点也能滚到正中 */
+#timeline::before, #timeline::after {
+  content: ''; display: block; width: 45vw; flex-shrink: 0; pointer-events: none;
+}
 
-.tl-axis { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: var(--border); transform: translateX(-50%); }
+/* 横向轴线 */
+.tl-axis {
+  position: absolute; top: 50%; left: 0; right: 0;
+  height: 2px; background: var(--border); transform: translateY(-50%);
+}
 
+/* 每个节点列：竖向排列（卡片→连接器→占位） */
 .tl-node-wrap {
-  position: relative; display: flex; align-items: center; margin-bottom: 4px;
-  cursor: pointer; transition: opacity .15s;
+  position: relative; display: flex; flex-direction: column;
+  align-items: center; flex-shrink: 0; width: 240px;
+  cursor: pointer; transition: opacity .25s ease, transform .25s ease;
 }
-.tl-node-wrap:hover { opacity: .85; }
+.tl-node-wrap:hover { opacity: .88; }
 .tl-node-wrap.filtered { display: none; }
 
-/* Alternating left/right */
-.tl-node-wrap:nth-child(odd)  { flex-direction: row; }
-.tl-node-wrap:nth-child(even) { flex-direction: row-reverse; }
+/* 奇数节点：卡片在上 */
+.tl-node-wrap:nth-child(odd)  { flex-direction: column; }
+/* 偶数节点：卡片在下（column-reverse 让第一个card沉到底部） */
+.tl-node-wrap:nth-child(even) { flex-direction: column-reverse; }
 
 .tl-card {
-  width: calc(50% - 36px); background: var(--bg2); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 10px 12px; transition: border-color .15s, box-shadow .15s;
+  width: 210px; background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px 14px;
+  transition: border-color .15s, box-shadow .15s;
+  flex-shrink: 0;
 }
-.tl-card:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent)22; }
-.tl-card.today-card { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent)33; }
+.tl-card:hover { border-color: var(--accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent); }
+.tl-card.today-card { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
 
-.tl-node-wrap:nth-child(odd)  .tl-card { margin-right: 0; }
-.tl-node-wrap:nth-child(even) .tl-card { margin-left: 0; }
-
-.tl-connector { width: 36px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; position: relative; }
-.tl-connector-line { position: absolute; height: 2px; background: var(--border); width: 100%; }
+/* 竖向连接线：从卡片到轴线上的节点 */
+.tl-connector {
+  height: 48px; width: 36px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; position: relative;
+}
+.tl-connector-line {
+  position: absolute; width: 2px; height: 100%;
+  background: var(--border); left: 50%; transform: translateX(-50%);
+}
 
 /* Node shapes */
 .tl-shape { width: 24px; height: 24px; flex-shrink: 0; z-index: 1; position: relative; display: flex; align-items: center; justify-content: center; }
@@ -127,17 +144,17 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
 .tl-shape.today-shape .shape-circle,
 .tl-shape.today-shape .shape-diamond { box-shadow: 0 0 0 4px currentColor33; }
 
-.card-date { font-size: 11px; color: var(--muted); margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
-.card-date .bell { font-size: 10px; }
-.card-stage { font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+.card-date { font-size: 12px; color: var(--muted); margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }
+.card-date .bell { font-size: 11px; }
+.card-stage { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
 .card-meta { display: flex; gap: 6px; flex-wrap: wrap; }
 .badge {
-  font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 500;
+  font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500;
   background: var(--bg3);
 }
-.emotion-bar { height: 4px; background: var(--bg3); border-radius: 2px; margin: 6px 0; overflow: hidden; }
-.emotion-fill { height: 100%; border-radius: 2px; transition: width .3s; }
-.card-events { font-size: 11px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
+.emotion-bar { height: 5px; background: var(--bg3); border-radius: 3px; margin: 7px 0; overflow: hidden; }
+.emotion-fill { height: 100%; border-radius: 3px; transition: width .3s; }
+.card-events { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
 
 /* Future node */
 .tl-card.future-card { opacity: .75; border-style: dashed; }
@@ -178,8 +195,8 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
   transition: all .3s ease;
 }
 /* 文字也稍微放大 */
-#timeline.has-selection .tl-node-wrap.active-node .card-stage { font-size: 15px; }
-#timeline.has-selection .tl-node-wrap.active-node .card-date  { font-size: 12px; color: #cbd5e1; }
+#timeline.has-selection .tl-node-wrap.active-node .card-stage { font-size: 16px; }
+#timeline.has-selection .tl-node-wrap.active-node .card-date  { font-size: 13px; color: #cbd5e1; }
 
 /* ── Detail Panel ── */
 #detail {
@@ -683,14 +700,14 @@ async function selectNode(date) {
     const isActive = wrap.dataset.date === date;
     wrap.classList.toggle('active-node', isActive);
     if (isActive) {
-      // 精确滚动：让选中节点居于 #timeline-wrap 可见区域正中
+      // 横向精确滚动：让选中节点居于 #timeline-wrap 可见区域水平正中
       setTimeout(() => {
         const container = document.getElementById('timeline-wrap');
-        const wrapTop    = wrap.offsetTop;
-        const wrapH      = wrap.offsetHeight;
-        const containerH = container.clientHeight;
-        const target = wrapTop - (containerH / 2) + (wrapH / 2);
-        container.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
+        const wrapLeft = wrap.offsetLeft;
+        const wrapW    = wrap.offsetWidth;
+        const containerW = container.clientWidth;
+        const target = wrapLeft - (containerW / 2) + (wrapW / 2);
+        container.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
       }, 60);
     }
   });
