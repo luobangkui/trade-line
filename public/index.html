@@ -83,13 +83,13 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
 #timeline-wrap {
   flex: 1; overflow-x: auto; overflow-y: hidden;
   display: flex; align-items: stretch;
-  height: 100%;
 }
 #timeline {
-  display: flex; flex-direction: row; align-items: center;
-  position: relative; height: 100%; min-height: 520px;
+  display: flex; flex-direction: row;
+  position: relative; flex-shrink: 0;
+  min-height: 620px; height: 100%;
 }
-/* 左右各留半屏宽，让首尾节点也能滚到正中 */
+/* 左右留白，让首尾节点能居中 */
 #timeline::before, #timeline::after {
   content: ''; display: block; width: 45vw; flex-shrink: 0; pointer-events: none;
 }
@@ -100,38 +100,50 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
   height: 2px; background: var(--border); transform: translateY(-50%);
 }
 
-/* 每个节点列：竖向排列（卡片→连接器→占位） */
+/* 节点容器：绝对定位上下布局 */
 .tl-node-wrap {
-  position: relative; display: flex; flex-direction: column;
-  align-items: center; flex-shrink: 0; width: 240px;
+  position: relative; flex-shrink: 0; width: 270px; height: 100%;
   cursor: pointer; transition: opacity .25s ease, transform .25s ease;
 }
 .tl-node-wrap:hover { opacity: .88; }
 .tl-node-wrap.filtered { display: none; }
 
-/* 奇数节点：卡片在上 */
-.tl-node-wrap:nth-child(odd)  { flex-direction: column; }
-/* 偶数节点：卡片在下（column-reverse 让第一个card沉到底部） */
-.tl-node-wrap:nth-child(even) { flex-direction: column-reverse; }
-
+/* 卡片尺寸样式（绝对定位由下面 odd/even 决定） */
 .tl-card {
-  width: 210px; background: var(--bg2); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 12px 14px;
+  position: absolute; left: 16px; right: 16px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px 16px;
   transition: border-color .15s, box-shadow .15s;
-  flex-shrink: 0;
 }
 .tl-card:hover { border-color: var(--accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent); }
 .tl-card.today-card { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
 
-/* 竖向连接线：从卡片到轴线上的节点 */
+/* 奇数节点：卡片在上 */
+.tl-node-wrap:nth-child(odd) .tl-card:not([style*="visibility"]) {
+  bottom: calc(50% + 76px);
+}
+/* 偶数节点：卡片在下 */
+.tl-node-wrap:nth-child(even) .tl-card:not([style*="visibility"]) {
+  top: calc(50% + 76px);
+}
+/* 占位 card 隐藏 */
+.tl-card[style*="visibility"] { display: none !important; }
+
+/* 连接器：绝对居中在轴线上 */
 .tl-connector {
-  height: 48px; width: 36px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; position: relative;
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2;
 }
+/* 连接线：从 connector 向卡片方向延伸 */
 .tl-connector-line {
-  position: absolute; width: 2px; height: 100%;
-  background: var(--border); left: 50%; transform: translateX(-50%);
+  position: absolute; width: 2px; background: var(--border);
+  left: 50%; transform: translateX(-50%);
 }
+.tl-node-wrap:nth-child(odd)  .tl-connector-line { bottom: 100%; height: 76px; }
+.tl-node-wrap:nth-child(even) .tl-connector-line { top:    100%; height: 76px; }
 
 /* Node shapes */
 .tl-shape { width: 24px; height: 24px; flex-shrink: 0; z-index: 1; position: relative; display: flex; align-items: center; justify-content: center; }
@@ -174,6 +186,7 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
   transform: scale(1.06);
   z-index: 20;
   position: relative;
+  overflow: visible;
 }
 /* 选中卡片：边框高亮 + 光晕 + 背景加深 */
 #timeline.has-selection .tl-node-wrap.active-node .tl-card:not([style*="visibility:hidden"]) {
