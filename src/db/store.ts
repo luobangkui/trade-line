@@ -1,6 +1,9 @@
 import fs from 'fs';
 import path from 'path';
-import type { BaselineInput, BaselineSnapshot, BaselineRelation, FutureWatchItem } from '../models/types';
+import type {
+  BaselineInput, BaselineSnapshot, BaselineRelation, FutureWatchItem,
+  TradeOperation, OperationEvaluation, DailyReviewSummary,
+} from '../models/types';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
@@ -10,15 +13,24 @@ interface DB {
   snapshots: BaselineSnapshot[];
   relations: BaselineRelation[];
   future_watchlist: FutureWatchItem[];
+  trade_operations: TradeOperation[];
+  operation_evaluations: OperationEvaluation[];
+  daily_reviews: DailyReviewSummary[];
 }
+
+const EMPTY_DB: DB = {
+  inputs: [], snapshots: [], relations: [], future_watchlist: [],
+  trade_operations: [], operation_evaluations: [], daily_reviews: [],
+};
 
 function load(): DB {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  if (!fs.existsSync(DB_FILE)) return { inputs: [], snapshots: [], relations: [], future_watchlist: [] };
+  if (!fs.existsSync(DB_FILE)) return { ...EMPTY_DB };
   try {
-    return JSON.parse(fs.readFileSync(DB_FILE, 'utf-8')) as DB;
+    const parsed = JSON.parse(fs.readFileSync(DB_FILE, 'utf-8')) as Partial<DB>;
+    return { ...EMPTY_DB, ...parsed };
   } catch {
-    return { inputs: [], snapshots: [], relations: [], future_watchlist: [] };
+    return { ...EMPTY_DB };
   }
 }
 
@@ -135,5 +147,80 @@ export function resetInputsByTimeKey(timeKey: string): number {
 }
 
 export function resetDB(): void {
-  save({ inputs: [], snapshots: [], relations: [], future_watchlist: [] });
+  save({ ...EMPTY_DB });
+}
+
+// ── Trade Operations ──────────────────────────────────────
+export function insertOperation(op: TradeOperation): TradeOperation {
+  const db = load();
+  db.trade_operations.push(op);
+  save(db);
+  return op;
+}
+
+export function getOperationsByDate(timeKey: string): TradeOperation[] {
+  return load().trade_operations
+    .filter((o) => o.time_key === timeKey)
+    .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+}
+
+export function getOperationById(id: string): TradeOperation | undefined {
+  return load().trade_operations.find((o) => o.id === id);
+}
+
+export function getOperationsByRange(start: string, end: string): TradeOperation[] {
+  return load().trade_operations
+    .filter((o) => o.time_key >= start && o.time_key <= end)
+    .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+}
+
+export function deleteOperation(id: string): boolean {
+  const db = load();
+  const before = db.trade_operations.length;
+  db.trade_operations = db.trade_operations.filter((o) => o.id !== id);
+  db.operation_evaluations = db.operation_evaluations.filter((e) => e.operation_id !== id);
+  save(db);
+  return db.trade_operations.length < before;
+}
+
+// ── Operation Evaluations ─────────────────────────────────
+export function insertEvaluation(ev: OperationEvaluation): OperationEvaluation {
+  const db = load();
+  // 同一 evaluator 对同一 operation 只保留最新一条
+  db.operation_evaluations = db.operation_evaluations.filter(
+    (e) => !(e.operation_id === ev.operation_id && e.evaluator === ev.evaluator)
+  );
+  db.operation_evaluations.push(ev);
+  save(db);
+  return ev;
+}
+
+export function getEvaluationsByOperation(opId: string): OperationEvaluation[] {
+  return load().operation_evaluations
+    .filter((e) => e.operation_id === opId)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at));
+}
+
+export function getEvaluationsByDate(timeKey: string): OperationEvaluation[] {
+  return load().operation_evaluations.filter((e) => e.time_key === timeKey);
+}
+
+// ── Daily Review Summary ──────────────────────────────────
+export function upsertDailyReview(review: DailyReviewSummary): DailyReviewSummary {
+  const db = load();
+  const idx = db.daily_reviews.findIndex((r) => r.time_key === review.time_key);
+  if (idx >= 0) db.daily_reviews[idx] = review;
+  else db.daily_reviews.push(review);
+  save(db);
+  return review;
+}
+
+export function getDailyReview(timeKey: string): DailyReviewSummary | undefined {
+  return load().daily_reviews.find((r) => r.time_key === timeKey);
+}
+
+export function getDailyReviewsByRange(start: string, end: string): DailyReviewSummary[] {
+  return load().daily_reviews
+    .filter((r) => r.time_key >= start && r.time_key <= end)
+    .sort((a, b) => a.time_key.localeCompare(b.time_key));
 }

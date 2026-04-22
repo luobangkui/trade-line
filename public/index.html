@@ -340,6 +340,59 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
   max-height: 180px; overflow-y: auto;
   background: #111827; border-radius: 5px; padding: 8px;
 }
+
+/* ── 复盘操作列表 ── */
+.op-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.op-item {
+  background: var(--bg3); border-radius: 7px; padding: 10px 12px;
+  cursor: default; transition: background .15s; border-left: 3px solid var(--border);
+}
+.op-item:hover { background: #1e2a3a; border-left-color: var(--accent); }
+.op-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+.op-dir { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+.op-symbol { font-size: 13px; color: var(--text); flex: 1; min-width: 100px; }
+.op-score { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 500; }
+.op-meta { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--muted); margin-bottom: 5px; }
+.op-meta span { background: #11182780; padding: 1px 6px; border-radius: 3px; }
+.op-stage { color: #94a3b8 !important; }
+.op-rationale {
+  font-size: 11px; color: #cbd5e1; line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* 操作详情 tooltip */
+.op-tooltip {
+  display: none; position: fixed; z-index: 9999;
+  width: 380px; max-height: 500px;
+  background: #1a2133; border: 1px solid #334155;
+  border-radius: 10px; padding: 14px 16px;
+  box-shadow: 0 12px 40px #000b;
+  pointer-events: auto; font-size: 12px; line-height: 1.6;
+  overflow-y: auto;
+}
+.op-tooltip.show { display: block; }
+.opt-title { font-size: 14px; color: #e2e8f0; font-weight: 600; margin-bottom: 8px; }
+.opt-row { color: #94a3b8; margin-top: 3px; }
+.opt-row b { color: #cbd5e1; margin-right: 5px; }
+.opt-section-title { color: #cbd5e1; font-weight: 600; margin-top: 10px; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+.opt-rationale { background: #111827; padding: 8px 10px; border-radius: 5px; color: #e2e8f0; margin-top: 4px; line-height: 1.6; }
+.opt-eval-card { background: #111827; padding: 8px 10px; border-radius: 5px; margin-top: 6px; border-left: 3px solid; }
+.opt-eval-list { padding-left: 16px; margin: 4px 0 0 0; color: #cbd5e1; font-size: 11px; }
+
+/* ── 日度复盘 ── */
+.review-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.review-stat { background: var(--bg3); border-radius: 6px; padding: 8px 10px; }
+.rs-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.rs-value { font-size: 18px; font-weight: 700; color: var(--text); margin-top: 2px; }
+.review-mood { background: var(--bg3); border-radius: 6px; padding: 8px 10px; font-size: 12px; color: #cbd5e1; margin-bottom: 8px; }
+.review-dist .rd-row { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.review-dist b { color: #94a3b8; margin-right: 4px; }
+.rd-tag { display: inline-block; background: var(--bg3); padding: 1px 7px; border-radius: 8px; margin-right: 4px; color: #cbd5e1; }
+
+.review-block { margin-bottom: 8px; }
+.rb-title { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+.rb-list { padding-left: 18px; margin: 0; color: #cbd5e1; font-size: 12px; line-height: 1.6; }
+.rb-list li { margin-bottom: 2px; }
 .input-meta { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
 .src-badge { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: var(--bg2); color: var(--muted); border: 1px solid var(--border); }
 .input-title { font-size: 12px; color: var(--text); line-height: 1.3; }
@@ -729,19 +782,35 @@ async function selectNode(date) {
   document.getElementById('detail-date').textContent = date;
   document.getElementById('detail-body').innerHTML = '<div class="empty-hint">加载中...</div>';
 
-  const [snapRes, inputsRes] = await Promise.all([
+  const [snapRes, inputsRes, opsRes, dailyRes] = await Promise.all([
     fetch(`/api/baseline/snapshot?date=${date}`),
     fetch(`/api/baseline/inputs?date=${date}`),
+    fetch(`/api/review/operations?date=${date}`),
+    fetch(`/api/review/daily?date=${date}`),
   ]);
 
   const snap = snapRes.ok ? await snapRes.json() : null;
   const inputs = inputsRes.ok ? await inputsRes.json() : [];
+  const operations = opsRes.ok ? await opsRes.json() : [];
+  const dailyReview = dailyRes.ok ? await dailyRes.json() : null;
   const futureNode = timelineData?.nodes.find(n => n.date === date);
 
-  renderDetail(date, snap, inputs, futureNode?.future_items || [], futureNode);
+  // 拉取每个 operation 的 evaluation
+  const evalMap = {};
+  await Promise.all((operations || []).map(async op => {
+    const r = await fetch(`/api/review/operation/${op.id}`);
+    if (r.ok) {
+      const d = await r.json();
+      evalMap[op.id] = d.evaluations || [];
+    }
+  }));
+
+  renderDetail(date, snap, inputs, futureNode?.future_items || [], futureNode, operations, dailyReview, evalMap);
 }
 
-function renderDetail(date, snap, inputs, futureItems, futureNode) {
+function renderDetail(date, snap, inputs, futureItems, futureNode, operations, dailyReview, evalMap) {
+  operations = operations || [];
+  evalMap = evalMap || {};
   const body = document.getElementById('detail-body');
   if (!snap && !inputs.length && !futureItems.length) {
     body.innerHTML = '<div class="empty-hint">暂无数据</div>';
@@ -907,6 +976,99 @@ function renderDetail(date, snap, inputs, futureItems, futureNode) {
     </div>
   ` : '';
 
+  // ── 复盘相关：操作 / 评估 / 日度汇总 ──
+  const DIRECTION_LABEL = { buy:'买入', sell:'卖出', add:'加仓', reduce:'减仓', hold:'持有', observe:'观望', plan:'计划' };
+  const DIRECTION_COLOR = { buy:'#22c55e', add:'#16a34a', sell:'#ef4444', reduce:'#f97316', hold:'#94a3b8', observe:'#64748b', plan:'#3b82f6' };
+  const VERDICT_LABEL = { excellent:'优秀', good:'良好', neutral:'中性', poor:'欠佳', bad:'糟糕' };
+  const VERDICT_COLOR = { excellent:'#22c55e', good:'#84cc16', neutral:'#eab308', poor:'#f97316', bad:'#ef4444' };
+  const EMOTION_LABEL = { calm:'冷静', confident:'自信', excited:'兴奋', fomo:'FOMO', greedy:'贪婪', fearful:'恐惧', panic:'恐慌', regret:'后悔', revenge:'报复' };
+  const RATIONALE_LABEL = { technical:'技术面', fundamental:'基本面', news:'消息面', baseline:'基于Baseline', emotion:'情绪驱动', impulsive:'上头', system:'系统化', mixed:'混合' };
+
+  const opsHtml = operations.length ? `
+    <div class="detail-section">
+      <div class="detail-section-title">📓 我的操作 (${operations.length})</div>
+      <ul class="op-list">
+        ${operations.map(op => {
+          const evals = evalMap[op.id] || [];
+          const latestEval = evals[evals.length - 1];
+          const dirColor = DIRECTION_COLOR[op.direction] || '#94a3b8';
+          const dirLabel = DIRECTION_LABEL[op.direction] || op.direction;
+          const amountStr = op.amount != null ? `¥${op.amount.toLocaleString()}` : '';
+          return `
+            <li class="op-item"
+                data-op="${encodeURIComponent(JSON.stringify({ op, evals }))}"
+                onmouseenter="showOpTooltip(this)"
+                onmouseleave="hideOpTooltip()">
+              <div class="op-header">
+                <span class="op-dir" style="background:${dirColor}22;color:${dirColor}">${dirLabel}</span>
+                <span class="op-symbol">${op.name} <span style="color:var(--muted);font-size:11px">${op.symbol}</span></span>
+                ${latestEval ? `<span class="op-score" style="background:${VERDICT_COLOR[latestEval.verdict]}22;color:${VERDICT_COLOR[latestEval.verdict]}">${latestEval.score}分 · ${VERDICT_LABEL[latestEval.verdict]}</span>` : '<span class="op-score" style="background:var(--bg3);color:var(--muted)">未评估</span>'}
+              </div>
+              <div class="op-meta">
+                ${op.quantity != null ? `<span>${op.quantity}股 @ ¥${op.price ?? '—'}</span>` : ''}
+                ${amountStr ? `<span>${amountStr}</span>` : ''}
+                <span>${EMOTION_LABEL[op.emotion_state] || op.emotion_state}</span>
+                <span>${RATIONALE_LABEL[op.rationale_type] || op.rationale_type}</span>
+                ${op.linked_baseline_stage ? `<span class="op-stage" title="操作时大盘阶段">📍 ${(STAGE_META[op.linked_baseline_stage] || {}).label || op.linked_baseline_stage}</span>` : ''}
+              </div>
+              <div class="op-rationale">${op.rationale}</div>
+            </li>
+          `;
+        }).join('')}
+      </ul>
+    </div>
+  ` : '';
+
+  let dailyHtml = '';
+  if (dailyReview && dailyReview.operations_count > 0) {
+    const winRate = dailyReview.win_rate != null ? Math.round(dailyReview.win_rate * 100) + '%' : '—';
+    const alignment = dailyReview.baseline_alignment;
+    const alignmentColor = alignment >= 70 ? '#22c55e' : alignment >= 40 ? '#eab308' : '#ef4444';
+
+    const emotionTop = Object.entries(dailyReview.emotion_distribution || {})
+      .filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    const rationaleTop = Object.entries(dailyReview.rationale_distribution || {})
+      .filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 3);
+
+    dailyHtml = `
+      <div class="detail-section">
+        <div class="detail-section-title">📊 日度复盘评分</div>
+        <div class="review-stat-grid">
+          <div class="review-stat"><div class="rs-label">综合评分</div><div class="rs-value">${dailyReview.avg_score || 0}</div></div>
+          <div class="review-stat"><div class="rs-label">胜率</div><div class="rs-value">${winRate}</div></div>
+          <div class="review-stat"><div class="rs-label">Baseline契合度</div><div class="rs-value" style="color:${alignmentColor}">${alignment}%</div></div>
+          <div class="review-stat"><div class="rs-label">操作笔数</div><div class="rs-value">${dailyReview.operations_count}</div></div>
+        </div>
+        ${dailyReview.mood_summary ? `<div class="review-mood">💭 ${dailyReview.mood_summary}</div>` : ''}
+        <div class="review-dist">
+          <div class="rd-row"><b>情绪：</b>${emotionTop.map(([k, v]) => `<span class="rd-tag">${EMOTION_LABEL[k] || k} ×${v}</span>`).join('') || '—'}</div>
+          <div class="rd-row"><b>依据：</b>${rationaleTop.map(([k, v]) => `<span class="rd-tag">${RATIONALE_LABEL[k] || k} ×${v}</span>`).join('') || '—'}</div>
+        </div>
+      </div>
+
+      ${(dailyReview.key_takeaways?.length || dailyReview.mistakes?.length) ? `
+      <div class="detail-section">
+        <div class="detail-section-title">📝 收获与错误</div>
+        ${dailyReview.key_takeaways?.length ? `
+          <div class="review-block">
+            <div class="rb-title" style="color:#22c55e">✅ 关键收获</div>
+            <ul class="rb-list">${dailyReview.key_takeaways.map(s => `<li>${s}</li>`).join('')}</ul>
+          </div>` : ''}
+        ${dailyReview.mistakes?.length ? `
+          <div class="review-block">
+            <div class="rb-title" style="color:#f97316">⚠️ 主要错误</div>
+            <ul class="rb-list">${dailyReview.mistakes.map(s => `<li>${s}</li>`).join('')}</ul>
+          </div>` : ''}
+      </div>` : ''}
+
+      ${dailyReview.next_actions?.length ? `
+      <div class="detail-section">
+        <div class="detail-section-title">🎯 后续计划</div>
+        <ul class="rb-list" style="padding-left:18px">${dailyReview.next_actions.map(s => `<li>${s}</li>`).join('')}</ul>
+      </div>` : ''}
+    `;
+  }
+
   const btnHtml = `
     <div class="detail-section">
       <button class="detail-btn" id="reaggregate-btn" onclick="reaggregate('${date}')">
@@ -915,7 +1077,7 @@ function renderDetail(date, snap, inputs, futureItems, futureNode) {
     </div>
   `;
 
-  body.innerHTML = stageHtml + emotionHtml + summaryHtml + eventsHtml + stylesHtml + activeHtml + futureHtml + inputsHtml + btnHtml;
+  body.innerHTML = stageHtml + emotionHtml + summaryHtml + eventsHtml + stylesHtml + activeHtml + futureHtml + opsHtml + dailyHtml + inputsHtml + btnHtml;
 }
 
 async function reaggregate(date) {
@@ -960,6 +1122,8 @@ function closeDetail() {
 
 loadTimeline();
 </script>
+<div class="op-tooltip" id="op-tooltip"></div>
+
 <div class="input-tooltip" id="input-tooltip">
   <div class="itp-title" id="itp-title"></div>
   <div class="itp-row" id="itp-source"></div>
@@ -978,6 +1142,71 @@ loadTimeline();
 </div>
 <script>
 (function() {
+  // ── Operation tooltip（粘性）──
+  const opt = document.getElementById('op-tooltip');
+  let optTimer = null, optPinned = false;
+  opt.addEventListener('mouseenter', () => { optPinned = true;  clearTimeout(optTimer); });
+  opt.addEventListener('mouseleave', () => { optPinned = false; clearTimeout(optTimer); optTimer = setTimeout(() => { if (!optPinned) opt.classList.remove('show'); }, 200); });
+
+  const DIRECTION_LABEL = { buy:'买入', sell:'卖出', add:'加仓', reduce:'减仓', hold:'持有', observe:'观望', plan:'计划' };
+  const VERDICT_LABEL = { excellent:'优秀', good:'良好', neutral:'中性', poor:'欠佳', bad:'糟糕' };
+  const VERDICT_COLOR = { excellent:'#22c55e', good:'#84cc16', neutral:'#eab308', poor:'#f97316', bad:'#ef4444' };
+  const EMOTION_LABEL = { calm:'冷静', confident:'自信', excited:'兴奋', fomo:'FOMO', greedy:'贪婪', fearful:'恐惧', panic:'恐慌', regret:'后悔', revenge:'报复' };
+  const RATIONALE_LABEL = { technical:'技术面', fundamental:'基本面', news:'消息面', baseline:'基于Baseline', emotion:'情绪驱动', impulsive:'上头', system:'系统化', mixed:'混合' };
+
+  window.showOpTooltip = function(el) {
+    clearTimeout(optTimer);
+    let data;
+    try { data = JSON.parse(decodeURIComponent(el.dataset.op || '')); } catch(e) { return; }
+    const op = data.op, evals = data.evals || [];
+
+    const evalCards = evals.map(e => {
+      const c = VERDICT_COLOR[e.verdict] || '#94a3b8';
+      return `
+        <div class="opt-eval-card" style="border-color:${c}">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="color:${c};font-weight:600">${e.score}分 · ${VERDICT_LABEL[e.verdict] || e.verdict}</span>
+            <span style="font-size:10px;color:#64748b">${e.evaluator}</span>
+          </div>
+          <div style="font-size:10px;color:#64748b;margin-top:3px">Baseline契合度: ${e.alignment_score}%</div>
+          ${e.pros && e.pros.length ? `<div style="margin-top:5px"><b style="color:#22c55e;font-size:10px">✓ 优点</b><ul class="opt-eval-list">${e.pros.map(s => `<li>${s}</li>`).join('')}</ul></div>` : ''}
+          ${e.cons && e.cons.length ? `<div style="margin-top:5px"><b style="color:#f97316;font-size:10px">✗ 问题</b><ul class="opt-eval-list">${e.cons.map(s => `<li>${s}</li>`).join('')}</ul></div>` : ''}
+          ${e.suggestions && e.suggestions.length ? `<div style="margin-top:5px"><b style="color:#3b82f6;font-size:10px">💡 建议</b><ul class="opt-eval-list">${e.suggestions.map(s => `<li>${s}</li>`).join('')}</ul></div>` : ''}
+        </div>
+      `;
+    }).join('');
+
+    opt.innerHTML = `
+      <div class="opt-title">${DIRECTION_LABEL[op.direction] || op.direction} · ${op.name} <span style="color:#64748b;font-size:11px">${op.symbol}</span></div>
+      ${op.quantity != null ? `<div class="opt-row"><b>数量价格：</b>${op.quantity}股 @ ¥${op.price ?? '—'}${op.amount != null ? ` = ¥${op.amount.toLocaleString()}` : ''}</div>` : ''}
+      <div class="opt-row"><b>时间：</b>${(op.timestamp || '').replace('T', ' ').slice(0, 19)}</div>
+      <div class="opt-row"><b>情绪：</b>${EMOTION_LABEL[op.emotion_state] || op.emotion_state} · <b style="margin-left:6px">依据：</b>${RATIONALE_LABEL[op.rationale_type] || op.rationale_type}</div>
+      ${op.linked_baseline_stage ? `<div class="opt-row"><b>大盘阶段：</b>${op.linked_baseline_stage} · 情绪 ${op.linked_baseline_emotion ?? '—'}</div>` : ''}
+      ${op.tags && op.tags.length ? `<div class="opt-row"><b>标签：</b>${op.tags.join('、')}</div>` : ''}
+      <div class="opt-section-title">操作依据</div>
+      <div class="opt-rationale">${op.rationale}</div>
+      ${op.notes ? `<div class="opt-section-title">备注</div><div class="opt-rationale">${op.notes}</div>` : ''}
+      ${evals.length ? `<div class="opt-section-title">评估 (${evals.length})</div>${evalCards}` : '<div class="opt-section-title" style="color:#64748b">暂无评估</div>'}
+    `;
+    opt.classList.add('show');
+
+    requestAnimationFrame(() => {
+      const rect = el.getBoundingClientRect();
+      const w = opt.offsetWidth, h = opt.offsetHeight;
+      let left = rect.left - w - 12;
+      if (left < 8) left = rect.right + 12;
+      if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
+      let top = rect.top;
+      if (top + h > window.innerHeight - 8) top = window.innerHeight - h - 8;
+      opt.style.left = Math.max(8, left) + 'px';
+      opt.style.top  = Math.max(8, top)  + 'px';
+    });
+  };
+  window.hideOpTooltip = function() {
+    clearTimeout(optTimer);
+    optTimer = setTimeout(() => { if (!optPinned) opt.classList.remove('show'); }, 180);
+  };
+
   // ── Input tooltip（粘性，可移入浮层操作）──
   const itp    = document.getElementById('input-tooltip');
   let itpTimer = null;
