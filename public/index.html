@@ -277,8 +277,21 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
 .active-event-item .ae-progress-label { font-size: 10px; color: var(--muted); margin-top: 3px; display: flex; justify-content: space-between; }
 
 /* Future Events Gantt */
-.gantt-section { padding: 12px 14px; border-bottom: 1px solid var(--border); }
-.gantt-title { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; }
+.gantt-section {
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  min-height: 0;          /* 允许压缩 */
+  max-height: 38vh;       /* 给日期列表留空间 */
+}
+.gantt-title { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; }
+.gantt-count { background: var(--bg3); color: var(--accent); font-size: 10px; padding: 1px 6px; border-radius: 8px; font-weight: 500; }
+#sidebar-gantt { overflow-y: auto; flex: 1; padding-right: 4px; min-height: 0; }
+#sidebar-gantt::-webkit-scrollbar { width: 6px; }
+#sidebar-gantt::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+#sidebar-gantt::-webkit-scrollbar-track { background: transparent; }
 .gantt-item { margin-bottom: 10px; }
 .gantt-item-header { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; flex-wrap: wrap; }
 .gantt-item-title { font-size: 11px; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -465,7 +478,10 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
     </div>
 
     <div class="sidebar-section gantt-section">
-      <div class="gantt-title">未来事件轴</div>
+      <div class="gantt-title">
+        <span>未来事件轴</span>
+        <span class="gantt-count" id="gantt-count" style="display:none"></span>
+      </div>
       <div id="sidebar-gantt"><div class="gantt-empty">加载中…</div></div>
     </div>
 
@@ -584,34 +600,43 @@ function updateTopbar() {
 
 function renderGanttSidebar() {
   const el = document.getElementById('sidebar-gantt');
+  const countEl = document.getElementById('gantt-count');
   if (!el) return;
-  if (!allFutureEvents.length) {
+
+  const todayStr = offsetDate(new Date(), 0);
+  const today = new Date(todayStr).getTime();
+
+  // 过滤：已结束 / expired 不再展示
+  const visible = (allFutureEvents || []).filter(f => {
+    if (f.review_status === 'expired') return false;
+    const endStr = f.expected_end_time ? f.expected_end_time.slice(0, 10) : f.expected_time.slice(0, 10);
+    return new Date(endStr).getTime() >= today;
+  });
+
+  if (countEl) {
+    countEl.style.display = visible.length ? 'inline-block' : 'none';
+    countEl.textContent = visible.length;
+  }
+
+  if (!visible.length) {
     el.innerHTML = '<div class="gantt-empty">暂无未来事件</div>';
     return;
   }
-  const todayStr = offsetDate(new Date(), 0);
-  const today = new Date(todayStr).getTime();
 
   const certPenalty = { high: 0, medium: 100, low: 300 };
   const DAY = 86400000;
 
-  // 综合评分（分越低优先级越高）：
-  //   score = 确定性惩罚 + 时间紧迫度（天数）
-  //   - 进行中事件：紧迫度 = 剩余天数（快结束=更紧迫）
-  //   - 未来事件：紧迫度 = 距开始天数（越近=更紧迫）
-  //   - 已结束：直接沉底
   function urgencyScore(f) {
     const start = new Date(f.expected_time.slice(0, 10)).getTime();
     const end   = f.expected_end_time ? new Date(f.expected_end_time.slice(0, 10)).getTime() : start;
     const cert  = certPenalty[f.certainty] ?? 200;
-    if (end < today) return 999999; // 已结束，沉底
     const timeFactor = today >= start
-      ? Math.round((end - today) / DAY)          // 进行中：剩余天数
-      : Math.round((start - today) / DAY);       // 未来：距开始天数
+      ? Math.round((end - today) / DAY)
+      : Math.round((start - today) / DAY);
     return cert + timeFactor;
   }
 
-  const sorted = [...allFutureEvents].sort((a, b) => urgencyScore(a) - urgencyScore(b));
+  const sorted = visible.sort((a, b) => urgencyScore(a) - urgencyScore(b));
 
   el.innerHTML = sorted.map(f => {
     const startStr = f.expected_time.slice(0, 10);
@@ -921,12 +946,19 @@ function renderDetail(date, snap, inputs, futureItems, futureNode, operations, d
     </div>
   ` : '';
 
-  // 即将到来的未来事件（未来 7 天内）
-  const futureHtml = futureItems.length ? `
+  // 即将到来的未来事件（未来 7 天内）—— 已结束的不再展示
+  const todayKey = (timelineData && timelineData.today) || offsetDate(new Date(), 0);
+  const todayMs = new Date(todayKey).getTime();
+  const visibleFutures = (futureItems || []).filter(f => {
+    if (f.review_status === 'expired') return false;
+    const endStr = f.expected_end_time ? f.expected_end_time.slice(0,10) : f.expected_time.slice(0,10);
+    return new Date(endStr).getTime() >= todayMs;
+  });
+  const futureHtml = visibleFutures.length ? `
     <div class="detail-section">
-      <div class="detail-section-title">🔔 近 7 天观察项</div>
+      <div class="detail-section-title">🔔 近期观察项</div>
       <ul class="future-list">
-        ${futureItems.map(f => {
+        ${visibleFutures.map(f => {
           const start = f.expected_time.slice(0,10);
           const end = f.expected_end_time ? f.expected_end_time.slice(0,10) : '';
           const rangeStr = end && end !== start ? `${start} ~ ${end.slice(5)}` : start;

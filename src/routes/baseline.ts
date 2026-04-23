@@ -117,7 +117,12 @@ router.get('/timeline', (req: Request, res: Response) => {
   const end   = (req.query['end']   as string) ?? '2026-12-31';
 
   const snaps   = getSnapshotsInRange(start, end);
-  const futures = getFutureItemsByRange(start, end);
+  // 过滤掉已结束 / expired 的未来事件，时间线和侧栏都不再展示
+  const futures = getFutureItemsByRange(start, end).filter((f) => {
+    if (f.review_status === 'expired') return false;
+    const endStr = f.expected_end_time ? f.expected_end_time.slice(0, 10) : f.expected_time.slice(0, 10);
+    return endStr >= today;
+  });
 
   const map = new Map<string, TimelineNode>();
 
@@ -178,8 +183,18 @@ router.get('/inputs', (req: Request, res: Response) => {
 });
 
 // GET /api/baseline/future
-router.get('/future', (_req: Request, res: Response) => {
-  res.json(getAllFutureItems().sort((a, b) => a.expected_time.localeCompare(b.expected_time)));
+router.get('/future', (req: Request, res: Response) => {
+  const includeExpired = req.query['include_expired'] === '1' || req.query['all'] === '1';
+  const today = new Date().toISOString().slice(0, 10);
+  let items = getAllFutureItems();
+  if (!includeExpired) {
+    items = items.filter((f) => {
+      if (f.review_status === 'expired') return false;
+      const endStr = f.expected_end_time ? f.expected_end_time.slice(0, 10) : f.expected_time.slice(0, 10);
+      return endStr >= today;
+    });
+  }
+  res.json(items.sort((a, b) => a.expected_time.localeCompare(b.expected_time)));
 });
 
 // POST /api/baseline/future/:id/status
