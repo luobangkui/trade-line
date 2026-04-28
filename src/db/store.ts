@@ -3,6 +3,7 @@ import path from 'path';
 import type {
   BaselineInput, BaselineSnapshot, BaselineRelation, FutureWatchItem,
   TradeOperation, OperationEvaluation, DailyReviewSummary,
+  PeriodReview, PeriodType,
 } from '../models/types';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
@@ -16,11 +17,14 @@ interface DB {
   trade_operations: TradeOperation[];
   operation_evaluations: OperationEvaluation[];
   daily_reviews: DailyReviewSummary[];
+  weekly_reviews: PeriodReview[];
+  monthly_reviews: PeriodReview[];
 }
 
 const EMPTY_DB: DB = {
   inputs: [], snapshots: [], relations: [], future_watchlist: [],
   trade_operations: [], operation_evaluations: [], daily_reviews: [],
+  weekly_reviews: [], monthly_reviews: [],
 };
 
 function load(): DB {
@@ -223,4 +227,54 @@ export function getDailyReviewsByRange(start: string, end: string): DailyReviewS
   return load().daily_reviews
     .filter((r) => r.time_key >= start && r.time_key <= end)
     .sort((a, b) => a.time_key.localeCompare(b.time_key));
+}
+
+export function getAllDailyReviews(): DailyReviewSummary[] {
+  return load().daily_reviews.sort((a, b) => a.time_key.localeCompare(b.time_key));
+}
+
+// ── Weekly / Monthly Period Reviews ──────────────────────
+function periodBucket(db: DB, type: PeriodType): PeriodReview[] {
+  return type === 'week' ? db.weekly_reviews : db.monthly_reviews;
+}
+
+export function upsertPeriodReview(review: PeriodReview): PeriodReview {
+  const db = load();
+  const arr = periodBucket(db, review.period_type);
+  const idx = arr.findIndex((r) => r.period_key === review.period_key);
+  if (idx >= 0) arr[idx] = review;
+  else arr.push(review);
+  save(db);
+  return review;
+}
+
+export function getPeriodReview(type: PeriodType, periodKey: string): PeriodReview | undefined {
+  const db = load();
+  return periodBucket(db, type).find((r) => r.period_key === periodKey);
+}
+
+export function getPeriodReviewsByRange(
+  type: PeriodType,
+  startKey: string,
+  endKey: string,
+): PeriodReview[] {
+  const db = load();
+  return periodBucket(db, type)
+    .filter((r) => r.period_key >= startKey && r.period_key <= endKey)
+    .sort((a, b) => a.period_key.localeCompare(b.period_key));
+}
+
+export function getAllPeriodReviews(type: PeriodType): PeriodReview[] {
+  const db = load();
+  return [...periodBucket(db, type)].sort((a, b) => a.period_key.localeCompare(b.period_key));
+}
+
+/** 取该 period 之前的 N 个历史复盘 (不含本期)，用于趋势/洞察对比 */
+export function getRecentPeriodReviewsBefore(
+  type: PeriodType,
+  periodKey: string,
+  n: number,
+): PeriodReview[] {
+  const all = getAllPeriodReviews(type).filter((r) => r.period_key < periodKey);
+  return all.slice(-n);
 }

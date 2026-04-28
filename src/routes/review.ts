@@ -4,12 +4,18 @@ import {
   insertOperation, getOperationsByDate, getOperationById, getOperationsByRange,
   deleteOperation, insertEvaluation, getEvaluationsByOperation, getEvaluationsByDate,
   getDailyReview, getDailyReviewsByRange, upsertDailyReview, getSnapshotByDate,
+  getPeriodReview, getPeriodReviewsByRange, getAllPeriodReviews,
 } from '../db/store';
 import { aggregateDailyReview } from '../services/reviewer';
+import {
+  aggregatePeriodReview, applyPeriodPlan, buildPeriodInsight, listChildSummaries,
+  isoWeekKey, monthKey, listWeekKeysInRange, listMonthKeysInRange,
+} from '../services/period-reviewer';
 import type {
   TradeOperation, TradeOperationUploadRequest,
   OperationEvaluation, OperationEvaluationUploadRequest,
   DailyReviewPlanRequest,
+  PeriodType, PeriodReviewPlanRequest,
 } from '../models/types';
 
 const router = Router();
@@ -159,6 +165,108 @@ router.post('/daily/:date/aggregate', (req: Request, res: Response) => {
   try {
     const review = aggregateDailyReview(req.params.date);
     res.json({ success: true, review });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/* ─────────────────────────────────────────────
+ * 周 / 月 复盘接口
+ * ───────────────────────────────────────────── */
+
+function periodTypeFromPath(path: 'weekly' | 'monthly'): PeriodType {
+  return path === 'weekly' ? 'week' : 'month';
+}
+
+function attachPeriodRoutes(pathPrefix: 'weekly' | 'monthly') {
+  const type = periodTypeFromPath(pathPrefix);
+
+  // GET /api/review/(weekly|monthly)?period=YYYY-W17  或 ?start=...&end=... 列表
+  router.get(`/${pathPrefix}`, (req: Request, res: Response) => {
+    const period = (req.query['period'] as string) || (req.query['week'] as string) || (req.query['month'] as string);
+    const start = req.query['start'] as string;
+    const end = req.query['end'] as string;
+    const all = req.query['all'] === '1';
+    if (all) return res.json(getAllPeriodReviews(type));
+    if (start && end) return res.json(getPeriodReviewsByRange(type, start, end));
+    if (!period) return res.status(400).json({ error: '需提供 period / week / month 或 start+end' });
+    let review = getPeriodReview(type, period);
+    if (!review) review = aggregatePeriodReview(type, period);
+    res.json(review);
+  });
+
+  // POST /api/review/(weekly|monthly)/:period/aggregate
+  router.post(`/${pathPrefix}/:period/aggregate`, (req: Request, res: Response) => {
+    try {
+      const review = aggregatePeriodReview(type, req.params.period);
+      res.json({ success: true, review });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  // POST /api/review/(weekly|monthly)/:period/plan
+  router.post(`/${pathPrefix}/:period/plan`, (req: Request, res: Response) => {
+    try {
+      const body = req.body as PeriodReviewPlanRequest;
+      const patch: Record<string, unknown> = {};
+      if (Array.isArray(body.next_actions))     patch.next_actions = body.next_actions;
+      if (Array.isArray(body.key_takeaways))    patch.key_takeaways = body.key_takeaways;
+      if (Array.isArray(body.mistakes))         patch.mistakes = body.mistakes;
+      if (Array.isArray(body.improvements))     patch.improvements = body.improvements;
+      if (Array.isArray(body.playbook_updates)) patch.playbook_updates = body.playbook_updates;
+      if (Array.isArray(body.pattern_insights)) patch.pattern_insights = body.pattern_insights;
+      if (typeof body.narrative === 'string')   patch.narrative = body.narrative;
+      if (typeof body.monthly_thesis === 'string' && type === 'month') patch.monthly_thesis = body.monthly_thesis;
+      const review = applyPeriodPlan(type, req.params.period, patch);
+      res.json({ success: true, review });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  // GET /api/review/(weekly|monthly)/:period/insights
+  router.get(`/${pathPrefix}/:period/insights`, (req: Request, res: Response) => {
+    try {
+      const lookback = Math.max(1, Math.min(12, Number(req.query['lookback']) || 4));
+      const insight = buildPeriodInsight(type, req.params.period, lookback);
+      res.json(insight);
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  // GET /api/review/(weekly|monthly)/:period/children — 子周期摘要列表
+  router.get(`/${pathPrefix}/:period/children`, (req: Request, res: Response) => {
+    try {
+      const items = listChildSummaries(type, req.params.period);
+      res.json(items);
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+}
+
+attachPeriodRoutes('weekly');
+attachPeriodRoutes('monthly');
+
+// GET /api/review/period/timeline?type=week|month&start=YYYY-MM-DD&end=YYYY-MM-DD
+//   列出区间内所有周/月节点（已聚合或未聚合都返回，未聚合则即时聚合）
+router.get('/period/timeline', (req: Request, res: Response) => {
+  try {
+    const type = (req.query['type'] as PeriodType) || 'week';
+    const start = req.query['start'] as string;
+    const end = req.query['end'] as string;
+    if (!start || !end) return res.status(400).json({ error: '需提供 start / end (YYYY-MM-DD)' });
+    const keys = type === 'week' ? listWeekKeysInRange(start, end) : listMonthKeysInRange(start, end);
+    const today = new Date().toISOString().slice(0, 10);
+    const todayKey = type === 'week' ? isoWeekKey(today) : monthKey(today);
+    const reviews = keys.map((k) => {
+      let r = getPeriodReview(type, k);
+      if (!r) r = aggregatePeriodReview(type, k);
+      return { ...r, is_current: k === todayKey, is_future: k > todayKey };
+    });
+    res.json({ type, today: todayKey, periods: reviews });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }

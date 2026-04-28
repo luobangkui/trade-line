@@ -33,6 +33,22 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
   background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
   padding: 4px 10px; font-size: 12px; color: var(--muted);
 }
+/* 视角切换 segmented */
+.view-switch {
+  display: inline-flex; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 8px; padding: 2px; gap: 0;
+}
+.view-switch button {
+  background: transparent; border: 0; color: var(--muted);
+  font-size: 12px; font-weight: 500; padding: 5px 12px;
+  border-radius: 6px; cursor: pointer; transition: all .15s;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.view-switch button:hover { color: var(--text); }
+.view-switch button.active {
+  background: var(--accent); color: #fff;
+  box-shadow: 0 1px 3px rgba(59,130,246,.4);
+}
 #status-chip {
   margin-left: auto; display: flex; align-items: center; gap: 8px;
   background: var(--bg3); border: 1px solid var(--border); border-radius: 20px;
@@ -438,6 +454,152 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
 
 /* ── Empty ── */
 .empty-hint { color: var(--muted); font-size: 12px; text-align: center; padding: 20px 0; }
+
+/* ── 周/月节点：宽矩形，更突出聚合统计 ── */
+.tl-node-wrap.period-node { width: 320px; }
+.tl-node-wrap.period-node.month-node { width: 380px; }
+.tl-card.period-card {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 14px 16px;
+}
+.period-card .pc-header {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+}
+.period-card .pc-key {
+  font-size: 17px; font-weight: 700; letter-spacing: -.3px; color: #f1f5f9;
+}
+.period-card .pc-key .pc-sub { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
+.period-card .pc-score {
+  font-size: 22px; font-weight: 700; line-height: 1;
+}
+.period-card .pc-meta {
+  display: flex; gap: 6px; flex-wrap: wrap; font-size: 11px;
+}
+.period-card .pc-meta .badge { background: var(--bg3); }
+.period-card .pc-bar { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+.period-card .pc-bar-fill { height: 100%; border-radius: 3px; transition: width .3s; }
+.period-card .pc-narrative {
+  font-size: 11px; color: var(--muted); line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.period-card.is-empty { opacity: .55; }
+.period-card.is-future { border-style: dashed; opacity: .65; }
+
+.period-shape { width: 28px; height: 28px; border-radius: 6px; border: 3px solid; background: var(--bg); }
+.period-shape.month { width: 30px; height: 30px; border-radius: 8px; }
+.period-shape.is-current { box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 25%, transparent); }
+
+/* ── 历史模式洞察卡片 ── */
+.insight-card {
+  background: linear-gradient(135deg, rgba(59,130,246,.08), rgba(168,85,247,.06));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 8px; padding: 12px 14px; margin-bottom: 8px;
+}
+.insight-card .ic-title {
+  font-size: 12px; font-weight: 600; color: var(--accent); margin-bottom: 8px;
+  display: flex; align-items: center; gap: 6px;
+}
+.insight-card .ic-trend {
+  display: flex; align-items: end; gap: 3px; height: 36px;
+  background: rgba(15,23,42,.4); padding: 4px 6px; border-radius: 5px;
+  margin-bottom: 8px;
+}
+.insight-card .ic-trend-bar {
+  flex: 1; min-width: 4px; background: var(--accent);
+  border-radius: 2px 2px 0 0; min-height: 2px; opacity: .7;
+  transition: opacity .15s; cursor: default;
+}
+.insight-card .ic-trend-bar:hover { opacity: 1; }
+.insight-card .ic-trend-bar.current { background: #f59e0b; opacity: 1; }
+.insight-card .ic-warn-list { font-size: 11px; color: #cbd5e1; line-height: 1.6; }
+.insight-card .ic-warn-list li { margin-bottom: 3px; }
+.insight-card .ic-warn-list li::marker { color: var(--muted); }
+.insight-card .ic-section-title {
+  font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px;
+  margin: 8px 0 4px;
+}
+.insight-card .ic-apply-btn {
+  margin-top: 10px; width: 100%; background: var(--accent); border: 0; color: #fff;
+  border-radius: 6px; padding: 7px; font-size: 12px; cursor: pointer; font-weight: 500;
+  transition: opacity .15s;
+}
+.insight-card .ic-apply-btn:hover { opacity: .85; }
+.insight-card .ic-apply-btn:disabled { background: var(--bg3); color: var(--muted); cursor: default; }
+
+/* ── 子周期下钻列表 ── */
+.child-list { display: flex; flex-direction: column; gap: 5px; }
+.child-item {
+  background: var(--bg3); border-radius: 6px; padding: 7px 10px;
+  cursor: pointer; transition: background .12s;
+  display: flex; align-items: center; gap: 10px; font-size: 12px;
+}
+.child-item:hover { background: #1e2a3a; }
+.child-item .ci-key { color: var(--text); font-weight: 500; min-width: 78px; }
+.child-item .ci-meta { color: var(--muted); flex: 1; font-size: 11px; }
+.child-item .ci-score { font-weight: 600; }
+
+/* ── 可编辑文本区块 ── */
+.editable-block { position: relative; }
+.editable-block .eb-edit-btn {
+  position: absolute; top: -2px; right: 0;
+  background: transparent; border: 1px solid var(--border); color: var(--muted);
+  border-radius: 4px; font-size: 10px; padding: 2px 7px; cursor: pointer;
+}
+.editable-block .eb-edit-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── 编辑模态浮层 ── */
+.modal-mask {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55);
+  z-index: 9998; align-items: center; justify-content: center; padding: 20px;
+}
+.modal-mask.show { display: flex; }
+.modal-box {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+  width: 100%; max-width: 640px; max-height: 88vh; overflow: hidden;
+  display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.6);
+}
+.modal-header {
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.modal-title { font-size: 15px; font-weight: 700; flex: 1; color: #f1f5f9; }
+.modal-close {
+  background: none; border: 1px solid var(--border); border-radius: 5px;
+  color: var(--muted); padding: 4px 9px; cursor: pointer; font-size: 12px;
+}
+.modal-close:hover { background: var(--bg3); color: var(--text); }
+.modal-body {
+  flex: 1; overflow-y: auto; padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.modal-footer {
+  padding: 12px 18px; border-top: 1px solid var(--border);
+  display: flex; gap: 8px; justify-content: flex-end;
+}
+.modal-btn {
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+  border-radius: 6px; padding: 7px 16px; font-size: 13px; cursor: pointer;
+  transition: all .15s;
+}
+.modal-btn:hover { background: #1e2a3a; }
+.modal-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.modal-btn.primary:hover { opacity: .88; }
+
+.field-block { display: flex; flex-direction: column; gap: 5px; }
+.field-block label {
+  font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px;
+  display: flex; align-items: center; gap: 6px;
+}
+.field-block label .helper { font-size: 10px; color: #64748b; text-transform: none; letter-spacing: 0; }
+.field-block textarea, .field-block input[type="text"] {
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+  border-radius: 6px; padding: 8px 10px; font-size: 13px; font-family: inherit;
+  resize: vertical; line-height: 1.5;
+}
+.field-block textarea { min-height: 64px; }
+.field-block textarea:focus, .field-block input[type="text"]:focus {
+  outline: 0; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(59,130,246,.15);
+}
 </style>
 </head>
 <body>
@@ -450,6 +612,11 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
 <!-- Topbar -->
 <div id="topbar">
   <div class="logo">Trade <span>Baseline</span> v2</div>
+  <div class="view-switch" id="view-switch">
+    <button class="active" data-view="day"   onclick="switchView('day')">📅 日复盘</button>
+    <button              data-view="week"  onclick="switchView('week')">📊 周复盘</button>
+    <button              data-view="month" onclick="switchView('month')">📈 月复盘</button>
+  </div>
   <div class="today-badge" id="today-label">—</div>
   <div id="status-chip">
     <div class="status-dot" id="status-dot" style="background:#94a3b8"></div>
@@ -552,25 +719,68 @@ let selectedDate = null;
 let activeFilter = 'all';
 let allFutureEvents = [];
 
+/* ── 视角切换：日 / 周 / 月 ── */
+let viewMode = 'day';                  // 'day' | 'week' | 'month'
+let periodTimelineData = null;          // { type, today, periods: [...] }
+let selectedPeriodKey = null;
+let editingPeriod = null;               // 当前正在编辑的周期对象
+
+const VIEW_LABEL = { day: '日', week: '周', month: '月' };
+
 async function loadTimeline() {
-  const end = offsetDate(new Date(), 14);
-  const start = offsetDate(new Date(), -45);
-  const [res, fRes] = await Promise.all([
-    fetch(`/api/baseline/timeline?start=${start}&end=${end}`),
-    fetch('/api/baseline/future'),
-  ]);
-  timelineData = await res.json();
-  const fData = await fRes.json();
-  allFutureEvents = Array.isArray(fData) ? fData.filter(f => f.review_status !== 'expired') : [];
-  renderSidebar();
-  renderTimeline();
-  renderGanttSidebar();
-  updateTopbar();
-  document.getElementById('loading').classList.add('hidden');
-  // 默认选中今天，触发聚光灯效果
-  if (timelineData.today) {
-    setTimeout(() => selectNode(timelineData.today), 150);
+  if (viewMode === 'day') {
+    const end = offsetDate(new Date(), 14);
+    const start = offsetDate(new Date(), -45);
+    const [res, fRes] = await Promise.all([
+      fetch(`/api/baseline/timeline?start=${start}&end=${end}`),
+      fetch('/api/baseline/future'),
+    ]);
+    timelineData = await res.json();
+    const fData = await fRes.json();
+    allFutureEvents = Array.isArray(fData) ? fData.filter(f => f.review_status !== 'expired') : [];
+    renderSidebar();
+    renderTimeline();
+    renderGanttSidebar();
+    updateTopbar();
+    document.getElementById('loading').classList.add('hidden');
+    if (timelineData.today) {
+      setTimeout(() => selectNode(timelineData.today), 150);
+    }
+  } else {
+    // 周/月视角
+    let start, end;
+    if (viewMode === 'week') {
+      start = offsetDate(new Date(), -90);   // 约 12 周
+      end   = offsetDate(new Date(), 14);
+    } else {
+      start = offsetDate(new Date(), -240);  // 约 8 个月
+      end   = offsetDate(new Date(), 14);
+    }
+    const res = await fetch(`/api/review/period/timeline?type=${viewMode}&start=${start}&end=${end}`);
+    periodTimelineData = await res.json();
+    renderPeriodSidebar();
+    renderPeriodTimeline();
+    updateTopbar();
+    document.getElementById('loading').classList.add('hidden');
+    if (periodTimelineData?.today) {
+      setTimeout(() => selectPeriod(periodTimelineData.today), 150);
+    }
   }
+}
+
+async function switchView(mode) {
+  if (mode === viewMode) return;
+  viewMode = mode;
+  document.querySelectorAll('#view-switch button').forEach(b => {
+    b.classList.toggle('active', b.dataset.view === mode);
+  });
+  // 清理选中态
+  selectedDate = null;
+  selectedPeriodKey = null;
+  document.getElementById('detail').classList.remove('open');
+  document.getElementById('timeline').classList.remove('has-selection');
+  document.getElementById('loading').classList.remove('hidden');
+  await loadTimeline();
 }
 
 function offsetDate(d, days) {
@@ -580,22 +790,74 @@ function offsetDate(d, days) {
 }
 
 function updateTopbar() {
-  if (!timelineData) return;
-  const today = timelineData.today;
-  document.getElementById('today-label').textContent = today;
-  const todayNode = timelineData.nodes.find(n => n.date === today);
-  const snap = todayNode?.snapshot;
-  if (snap) {
-    const meta = STAGE_META[snap.market_stage] || STAGE_META.UNKNOWN;
-    document.getElementById('status-dot').style.background = meta.color;
-    document.getElementById('status-text').textContent = `${meta.label} · 情绪 ${snap.emotion_score}`;
-    document.getElementById('stat-stage').textContent = meta.label;
-    document.getElementById('stat-stage').style.color = meta.color;
-    document.getElementById('stat-emotion').textContent = snap.emotion_score;
-    document.getElementById('stat-risk').textContent = `风险等级 ${snap.risk_level}`;
-    document.getElementById('stat-pos').textContent =
-      `${Math.round(snap.position_min*100)}% – ${Math.round(snap.position_max*100)}%`;
+  if (viewMode === 'day') {
+    if (!timelineData) return;
+    const today = timelineData.today;
+    document.getElementById('today-label').textContent = today;
+    const todayNode = timelineData.nodes.find(n => n.date === today);
+    const snap = todayNode?.snapshot;
+    if (snap) {
+      const meta = STAGE_META[snap.market_stage] || STAGE_META.UNKNOWN;
+      document.getElementById('status-dot').style.background = meta.color;
+      document.getElementById('status-text').textContent = `${meta.label} · 情绪 ${snap.emotion_score}`;
+      document.getElementById('stat-stage').textContent = meta.label;
+      document.getElementById('stat-stage').style.color = meta.color;
+      document.getElementById('stat-emotion').textContent = snap.emotion_score;
+      document.getElementById('stat-risk').textContent = `风险等级 ${snap.risk_level}`;
+      document.getElementById('stat-pos').textContent =
+        `${Math.round(snap.position_min*100)}% – ${Math.round(snap.position_max*100)}%`;
+    }
+  } else {
+    if (!periodTimelineData) return;
+    document.getElementById('today-label').textContent = periodTimelineData.today + ' · ' + VIEW_LABEL[viewMode] + '复盘';
+    const cur = periodTimelineData.periods.find(p => p.is_current);
+    if (cur) {
+      const c = scoreColor(cur.avg_score);
+      document.getElementById('status-dot').style.background = c;
+      document.getElementById('status-text').textContent =
+        `本${VIEW_LABEL[viewMode]} 评分 ${cur.avg_score} · 契合度 ${cur.baseline_alignment}%`;
+      document.getElementById('stat-stage').textContent = `${cur.operations_count} 笔操作`;
+      document.getElementById('stat-stage').style.color = c;
+      document.getElementById('stat-emotion').textContent = cur.avg_score;
+      document.getElementById('stat-risk').textContent =
+        `胜率 ${cur.win_rate != null ? Math.round(cur.win_rate * 100) + '%' : '—'}`;
+      document.getElementById('stat-pos').textContent =
+        cur.baseline_alignment ? cur.baseline_alignment + '% 契合' : '—';
+    } else {
+      document.getElementById('status-dot').style.background = '#94a3b8';
+      document.getElementById('status-text').textContent = '本' + VIEW_LABEL[viewMode] + ' 暂无聚合';
+    }
   }
+}
+
+function scoreColor(score) {
+  if (!score) return '#475569';
+  if (score >= 80) return '#22c55e';
+  if (score >= 65) return '#84cc16';
+  if (score >= 50) return '#eab308';
+  if (score >= 35) return '#f97316';
+  return '#ef4444';
+}
+
+function periodLabel(p) {
+  if (p.period_type === 'week') {
+    const m = /^(\d{4})-W(\d{1,2})$/.exec(p.period_key);
+    return m ? `W${m[2]}` : p.period_key;
+  }
+  if (p.period_type === 'month') {
+    const m = /^(\d{4})-(\d{2})$/.exec(p.period_key);
+    return m ? `${m[1].slice(2)}/${m[2]}` : p.period_key;
+  }
+  return p.period_key;
+}
+
+function periodFullLabel(p) {
+  if (p.period_type === 'week') return `${p.period_key}（${p.start_date.slice(5)} ~ ${p.end_date.slice(5)}）`;
+  if (p.period_type === 'month') {
+    const m = /^(\d{4})-(\d{2})$/.exec(p.period_key);
+    return m ? `${m[1]}年 ${parseInt(m[2])}月` : p.period_key;
+  }
+  return p.period_key;
 }
 
 function renderGanttSidebar() {
@@ -695,6 +957,24 @@ function renderSidebar() {
   });
 }
 
+function renderPeriodSidebar() {
+  if (!periodTimelineData) return;
+  const list = document.getElementById('date-list');
+  list.innerHTML = '';
+  [...periodTimelineData.periods].reverse().forEach(p => {
+    const c = scoreColor(p.avg_score);
+    const el = document.createElement('div');
+    el.className = `date-item${p.is_current ? ' today' : ''}${p.period_key === selectedPeriodKey ? ' selected' : ''}`;
+    el.dataset.date = p.period_key;
+    el.innerHTML = `
+      <span class="di-dot" style="background:${c}"></span>
+      ${periodLabel(p)} <span style="margin-left:auto;color:#64748b;font-size:11px">${p.operations_count}笔</span>
+    `;
+    el.onclick = () => selectPeriod(p.period_key);
+    list.appendChild(el);
+  });
+}
+
 function renderTimeline() {
   if (!timelineData) return;
   const tl = document.getElementById('timeline');
@@ -751,6 +1031,60 @@ function renderTimeline() {
 
     wrap.innerHTML = `
       <div class="tl-card${isToday?' today-card':''}${isFuture?' future-card':''}">${cardContent}</div>
+      <div class="tl-connector">
+        <div class="tl-connector-line"></div>
+        ${shapeHtml}
+      </div>
+      <div class="tl-card" style="visibility:hidden"></div>
+    `;
+    tl.appendChild(wrap);
+  });
+}
+
+function renderPeriodTimeline() {
+  if (!periodTimelineData) return;
+  const tl = document.getElementById('timeline');
+  [...tl.children].forEach(c => { if (!c.classList.contains('tl-axis')) c.remove(); });
+
+  periodTimelineData.periods.forEach(p => {
+    const c = scoreColor(p.avg_score);
+    const isCurrent = p.is_current;
+    const isFuture = p.is_future;
+    const isEmpty = !p.operations_count;
+
+    const wrap = document.createElement('div');
+    wrap.className = `tl-node-wrap period-node${p.period_type === 'month' ? ' month-node' : ''}`;
+    wrap.dataset.date = p.period_key;
+    wrap.dataset.future = isFuture ? '1' : '0';
+    wrap.onclick = () => selectPeriod(p.period_key);
+
+    const shapeHtml = `<div class="tl-shape" style="color:${c}">
+      <div class="period-shape${p.period_type === 'month' ? ' month' : ''}${isCurrent ? ' is-current' : ''}" style="border-color:${c}"></div>
+    </div>`;
+
+    const winRateStr = p.win_rate != null ? Math.round(p.win_rate * 100) + '%' : '—';
+
+    const cardContent = `
+      <div class="pc-header">
+        <div class="pc-key">
+          ${periodLabel(p)}
+          <span class="pc-sub">${p.start_date.slice(5)}~${p.end_date.slice(5)}</span>
+          ${isCurrent ? ' <b style="color:var(--accent);font-size:11px">本' + VIEW_LABEL[p.period_type] + '</b>' : ''}
+        </div>
+        <div class="pc-score" style="color:${c}">${p.avg_score || '—'}</div>
+      </div>
+      <div class="pc-bar"><div class="pc-bar-fill" style="width:${p.avg_score}%;background:${c}"></div></div>
+      <div class="pc-meta">
+        <span class="badge">${p.operations_count} 笔</span>
+        <span class="badge">活跃 ${p.active_days} 天</span>
+        <span class="badge">契合 ${p.baseline_alignment}%</span>
+        <span class="badge">胜率 ${winRateStr}</span>
+      </div>
+      ${p.narrative ? `<div class="pc-narrative">${p.narrative}</div>` : ''}
+    `;
+
+    wrap.innerHTML = `
+      <div class="tl-card period-card${isCurrent ? ' today-card' : ''}${isFuture ? ' future-card is-future' : ''}${isEmpty ? ' is-empty' : ''}">${cardContent}</div>
       <div class="tl-connector">
         <div class="tl-connector-line"></div>
         ${shapeHtml}
@@ -1146,10 +1480,336 @@ function expandInputList(encodedList) {
 function closeDetail() {
   document.getElementById('detail').classList.remove('open');
   selectedDate = null;
+  selectedPeriodKey = null;
   document.querySelectorAll('.date-item').forEach(el => el.classList.remove('selected'));
   // 取消聚光灯
   document.getElementById('timeline').classList.remove('has-selection');
   document.querySelectorAll('.tl-node-wrap').forEach(wrap => wrap.classList.remove('active-node'));
+}
+
+/* ─────────────────────────────────────────────
+ * 周 / 月 复盘：选中节点 + 详情渲染
+ * ───────────────────────────────────────────── */
+
+async function selectPeriod(periodKey) {
+  selectedPeriodKey = periodKey;
+
+  document.querySelectorAll('.date-item').forEach(el => {
+    el.classList.toggle('selected', el.dataset.date === periodKey);
+  });
+
+  const timeline = document.getElementById('timeline');
+  timeline.classList.add('has-selection');
+  document.querySelectorAll('.tl-node-wrap').forEach(wrap => {
+    const isActive = wrap.dataset.date === periodKey;
+    wrap.classList.toggle('active-node', isActive);
+    if (isActive) {
+      setTimeout(() => {
+        const container = document.getElementById('timeline-wrap');
+        const wrapLeft = wrap.offsetLeft;
+        const wrapW = wrap.offsetWidth;
+        const containerW = container.clientWidth;
+        const target = wrapLeft - (containerW / 2) + (wrapW / 2);
+        container.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
+      }, 60);
+    }
+  });
+
+  document.getElementById('detail').classList.add('open');
+  const p = periodTimelineData.periods.find(x => x.period_key === periodKey);
+  document.getElementById('detail-date').textContent = p ? periodFullLabel(p) : periodKey;
+  document.getElementById('detail-body').innerHTML = '<div class="empty-hint">加载中...</div>';
+
+  const path = viewMode === 'week' ? 'weekly' : 'monthly';
+  const [reviewRes, insightRes, childRes] = await Promise.all([
+    fetch(`/api/review/${path}?period=${encodeURIComponent(periodKey)}`),
+    fetch(`/api/review/${path}/${encodeURIComponent(periodKey)}/insights`),
+    fetch(`/api/review/${path}/${encodeURIComponent(periodKey)}/children`),
+  ]);
+  const review = reviewRes.ok ? await reviewRes.json() : null;
+  const insight = insightRes.ok ? await insightRes.json() : null;
+  const children = childRes.ok ? await childRes.json() : [];
+  renderPeriodDetail(review, insight, children);
+}
+
+function renderPeriodDetail(review, insight, children) {
+  const body = document.getElementById('detail-body');
+  if (!review) {
+    body.innerHTML = '<div class="empty-hint">暂无数据</div>';
+    return;
+  }
+
+  const EMOTION_LABEL = { calm:'冷静', confident:'自信', excited:'兴奋', fomo:'FOMO', greedy:'贪婪', fearful:'恐惧', panic:'恐慌', regret:'后悔', revenge:'报复' };
+  const RATIONALE_LABEL = { technical:'技术面', fundamental:'基本面', news:'消息面', baseline:'基于Baseline', emotion:'情绪驱动', impulsive:'上头', system:'系统化', mixed:'混合' };
+
+  const c = scoreColor(review.avg_score);
+  const winRate = review.win_rate != null ? Math.round(review.win_rate * 100) + '%' : '—';
+  const stageTop = Object.entries(review.stage_distribution || {})
+    .filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const emotionTop = Object.entries(review.emotion_distribution || {})
+    .filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const rationaleTop = Object.entries(review.rationale_distribution || {})
+    .filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 3);
+
+  const summaryHtml = `
+    <div class="detail-section">
+      <div class="detail-section-title">📌 ${VIEW_LABEL[review.period_type]}度概览</div>
+      <div class="review-stat-grid">
+        <div class="review-stat"><div class="rs-label">综合评分</div><div class="rs-value" style="color:${c}">${review.avg_score || 0}</div></div>
+        <div class="review-stat"><div class="rs-label">胜率</div><div class="rs-value">${winRate}</div></div>
+        <div class="review-stat"><div class="rs-label">Baseline契合度</div><div class="rs-value" style="color:${scoreColor(review.baseline_alignment)}">${review.baseline_alignment}%</div></div>
+        <div class="review-stat"><div class="rs-label">操作笔数</div><div class="rs-value">${review.operations_count}</div></div>
+        <div class="review-stat"><div class="rs-label">活跃天数</div><div class="rs-value">${review.active_days}</div></div>
+        <div class="review-stat"><div class="rs-label">${review.period_type === 'week' ? '日均操作' : '日均操作'}</div><div class="rs-value">${review.active_days ? (review.operations_count / review.active_days).toFixed(1) : '—'}</div></div>
+      </div>
+      ${review.narrative ? `<div class="review-mood">💭 ${review.narrative}</div>` : ''}
+      ${review.monthly_thesis ? `<div class="review-mood" style="border-left:3px solid var(--accent);background:rgba(59,130,246,.08);padding-left:10px">🎯 ${review.monthly_thesis}</div>` : ''}
+      <div class="review-dist">
+        <div class="rd-row"><b>阶段分布：</b>${stageTop.map(([k, v]) => `<span class="rd-tag">${(STAGE_META[k]||{}).label || k} ×${v}天</span>`).join('') || '—'}</div>
+        <div class="rd-row"><b>情绪分布：</b>${emotionTop.map(([k, v]) => `<span class="rd-tag">${EMOTION_LABEL[k] || k} ×${v}</span>`).join('') || '—'}</div>
+        <div class="rd-row"><b>依据分布：</b>${rationaleTop.map(([k, v]) => `<span class="rd-tag">${RATIONALE_LABEL[k] || k} ×${v}</span>`).join('') || '—'}</div>
+      </div>
+    </div>
+  `;
+
+  // 历史模式洞察卡片
+  let insightHtml = '';
+  if (insight && (insight.compared_keys.length > 0 || insight.score_trend.length > 0)) {
+    const trends = insight.score_trend.concat([review.avg_score || 0]);
+    const max = Math.max(...trends, 1);
+    const trendBars = trends.map((v, i) => {
+      const isCurrent = i === trends.length - 1;
+      const h = Math.max(2, Math.round(v / max * 32));
+      const labelKey = isCurrent ? '本期' : (insight.compared_keys[i] || '').replace(/^\d{4}-/, '');
+      return `<div class="ic-trend-bar${isCurrent ? ' current' : ''}" style="height:${h}px" title="${labelKey}: ${v}"></div>`;
+    }).join('');
+
+    const hasContent = insight.recurring_mistakes.length || insight.recurring_strengths.length
+      || insight.emotion_warnings.length || insight.rationale_warnings.length
+      || insight.alignment_warnings.length;
+
+    insightHtml = `
+      <div class="insight-card">
+        <div class="ic-title">🧠 历史模式洞察 <span style="margin-left:auto;color:var(--muted);font-size:10px;font-weight:400">对比近 ${insight.compared_keys.length} 期</span></div>
+
+        ${trends.length > 1 ? `
+          <div class="ic-section-title">📈 评分趋势（最右为本期）</div>
+          <div class="ic-trend">${trendBars}</div>
+        ` : ''}
+
+        ${insight.recurring_mistakes.length ? `
+          <div class="ic-section-title">⚠️ 反复出现的错误</div>
+          <ul class="ic-warn-list">${insight.recurring_mistakes.map(s => `<li>${s}</li>`).join('')}</ul>
+        ` : ''}
+
+        ${insight.recurring_strengths.length ? `
+          <div class="ic-section-title">✅ 反复体现的优势</div>
+          <ul class="ic-warn-list">${insight.recurring_strengths.map(s => `<li>${s}</li>`).join('')}</ul>
+        ` : ''}
+
+        ${insight.emotion_warnings.length ? `
+          <div class="ic-section-title">😰 情绪警示</div>
+          <ul class="ic-warn-list">${insight.emotion_warnings.map(s => `<li>${s}</li>`).join('')}</ul>
+        ` : ''}
+
+        ${insight.rationale_warnings.length ? `
+          <div class="ic-section-title">🎯 依据警示</div>
+          <ul class="ic-warn-list">${insight.rationale_warnings.map(s => `<li>${s}</li>`).join('')}</ul>
+        ` : ''}
+
+        ${insight.alignment_warnings.length ? `
+          <div class="ic-section-title">📊 契合度警示</div>
+          <ul class="ic-warn-list">${insight.alignment_warnings.map(s => `<li>${s}</li>`).join('')}</ul>
+        ` : ''}
+
+        ${insight.recommended_next_actions.length ? `
+          <div class="ic-section-title">🎯 推荐下期行动</div>
+          <ul class="ic-warn-list">${insight.recommended_next_actions.map(s => `<li>${s}</li>`).join('')}</ul>
+          <button class="ic-apply-btn" onclick="applyInsightToActions()">⚡ 一键应用到下期行动</button>
+        ` : (hasContent ? '' : '<div class="ic-warn-list" style="color:var(--muted);text-align:center;padding:8px">数据充分时将自动给出建议</div>')}
+      </div>
+    `;
+  } else if (insight) {
+    insightHtml = `
+      <div class="insight-card">
+        <div class="ic-title">🧠 历史模式洞察</div>
+        <div class="ic-warn-list" style="color:var(--muted);text-align:center;padding:8px">
+          需要至少 1 个历史${VIEW_LABEL[review.period_type]}的数据才能给出对比洞察
+        </div>
+      </div>
+    `;
+  }
+
+  // 文字内容区块（可编辑）
+  const textBlocksHtml = `
+    <div class="detail-section editable-block">
+      <div class="detail-section-title">📝 ${VIEW_LABEL[review.period_type]}度复盘内容</div>
+      <button class="eb-edit-btn" onclick="openPeriodEditModal()">✎ 编辑</button>
+      ${(review.key_takeaways && review.key_takeaways.length) ? `
+        <div class="review-block">
+          <div class="rb-title" style="color:#22c55e">✅ 关键收获</div>
+          <ul class="rb-list">${review.key_takeaways.map(s => `<li>${s}</li>`).join('')}</ul>
+        </div>` : ''}
+      ${(review.mistakes && review.mistakes.length) ? `
+        <div class="review-block">
+          <div class="rb-title" style="color:#f97316">⚠️ 主要错误</div>
+          <ul class="rb-list">${review.mistakes.map(s => `<li>${s}</li>`).join('')}</ul>
+        </div>` : ''}
+      ${(review.recurring_mistakes && review.recurring_mistakes.length) ? `
+        <div class="review-block">
+          <div class="rb-title" style="color:#ef4444">🔁 反复犯的错</div>
+          <ul class="rb-list">${review.recurring_mistakes.map(s => `<li>${s}</li>`).join('')}</ul>
+        </div>` : ''}
+      ${(review.pattern_insights && review.pattern_insights.length) ? `
+        <div class="review-block">
+          <div class="rb-title" style="color:#a855f7">🧬 模式识别</div>
+          <ul class="rb-list">${review.pattern_insights.map(s => `<li>${s}</li>`).join('')}</ul>
+        </div>` : ''}
+      ${(review.improvements && review.improvements.length) ? `
+        <div class="review-block">
+          <div class="rb-title" style="color:#3b82f6">🔧 改进点</div>
+          <ul class="rb-list">${review.improvements.map(s => `<li>${s}</li>`).join('')}</ul>
+        </div>` : ''}
+      ${(review.playbook_updates && review.playbook_updates.length) ? `
+        <div class="review-block">
+          <div class="rb-title" style="color:#06b6d4">📖 操作手册更新</div>
+          <ul class="rb-list">${review.playbook_updates.map(s => `<li>${s}</li>`).join('')}</ul>
+        </div>` : ''}
+      ${(!review.key_takeaways?.length && !review.mistakes?.length && !review.improvements?.length) ? `
+        <div class="empty-hint">暂无内容，点击右上 ✎ 编辑写入</div>
+      ` : ''}
+    </div>
+
+    ${(review.next_actions && review.next_actions.length) ? `
+    <div class="detail-section">
+      <div class="detail-section-title">🎯 下期行动计划</div>
+      <ul class="rb-list" style="padding-left:18px">${review.next_actions.map(s => `<li>${s}</li>`).join('')}</ul>
+    </div>` : ''}
+  `;
+
+  // 子周期下钻
+  const childTitle = review.period_type === 'week' ? '🗓️ 该周每日明细' : '📅 该月各周明细';
+  const childHtml = children && children.length ? `
+    <div class="detail-section">
+      <div class="detail-section-title">${childTitle}</div>
+      <div class="child-list">
+        ${children.map(ch => {
+          const cc = scoreColor(ch.avg_score);
+          return `
+            <div class="child-item" onclick="drillDownChild('${ch.key}', '${review.period_type}')">
+              <span class="ci-key">${ch.key}</span>
+              <span class="ci-meta">${ch.ops}笔 · 契合 ${ch.alignment}%${ch.mood ? ' · ' + (ch.mood.length > 30 ? ch.mood.slice(0,30) + '…' : ch.mood) : ''}</span>
+              <span class="ci-score" style="color:${cc}">${ch.avg_score || '—'}</span>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  const btnHtml = `
+    <div class="detail-section" style="display:flex;gap:8px">
+      <button class="detail-btn" onclick="reaggregatePeriod('${review.period_key}')">↻ 重新聚合</button>
+      <button class="detail-btn" style="background:var(--accent);border-color:var(--accent);color:#fff" onclick="openPeriodEditModal()">✎ 上传/编辑</button>
+    </div>
+  `;
+
+  // 缓存当前 review 给模态使用
+  editingPeriod = review;
+
+  body.innerHTML = summaryHtml + insightHtml + textBlocksHtml + childHtml + btnHtml;
+}
+
+async function reaggregatePeriod(periodKey) {
+  const path = viewMode === 'week' ? 'weekly' : 'monthly';
+  await fetch(`/api/review/${path}/${encodeURIComponent(periodKey)}/aggregate`, { method: 'POST' });
+  await loadTimeline();
+  await selectPeriod(periodKey);
+}
+
+function drillDownChild(key, parentType) {
+  if (parentType === 'week') {
+    // 子是日 → 切到日视角
+    switchView('day').then(() => setTimeout(() => selectNode(key), 200));
+  } else {
+    // 子是周 → 切到周视角
+    switchView('week').then(() => setTimeout(() => selectPeriod(key), 200));
+  }
+}
+
+/* ── 编辑模态：上传周/月复盘 ── */
+function openPeriodEditModal() {
+  if (!editingPeriod) return;
+  document.getElementById('pe-modal-title').textContent =
+    `编辑 ${periodFullLabel(editingPeriod)} 复盘`;
+  const showThesis = editingPeriod.period_type === 'month';
+  document.getElementById('pe-thesis-block').style.display = showThesis ? '' : 'none';
+
+  const linesOf = arr => Array.isArray(arr) ? arr.join('\n') : '';
+  document.getElementById('pe-narrative').value   = editingPeriod.narrative || '';
+  document.getElementById('pe-thesis').value      = editingPeriod.monthly_thesis || '';
+  document.getElementById('pe-takeaways').value   = linesOf(editingPeriod.key_takeaways);
+  document.getElementById('pe-mistakes').value    = linesOf(editingPeriod.mistakes);
+  document.getElementById('pe-improvements').value= linesOf(editingPeriod.improvements);
+  document.getElementById('pe-playbook').value    = linesOf(editingPeriod.playbook_updates);
+  document.getElementById('pe-actions').value     = linesOf(editingPeriod.next_actions);
+
+  document.getElementById('period-edit-modal').classList.add('show');
+}
+
+function closePeriodEditModal() {
+  document.getElementById('period-edit-modal').classList.remove('show');
+}
+
+async function savePeriodEdit() {
+  if (!editingPeriod) return;
+  const linesFrom = id => document.getElementById(id).value
+    .split('\n').map(s => s.trim()).filter(Boolean);
+  const payload = {
+    narrative:        document.getElementById('pe-narrative').value.trim() || undefined,
+    key_takeaways:    linesFrom('pe-takeaways'),
+    mistakes:         linesFrom('pe-mistakes'),
+    improvements:     linesFrom('pe-improvements'),
+    playbook_updates: linesFrom('pe-playbook'),
+    next_actions:     linesFrom('pe-actions'),
+  };
+  if (editingPeriod.period_type === 'month') {
+    const t = document.getElementById('pe-thesis').value.trim();
+    if (t) payload.monthly_thesis = t;
+  }
+  const path = editingPeriod.period_type === 'week' ? 'weekly' : 'monthly';
+  const btn = document.getElementById('pe-save-btn');
+  btn.disabled = true; btn.textContent = '保存中...';
+  try {
+    await fetch(`/api/review/${path}/${encodeURIComponent(editingPeriod.period_key)}/plan`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    closePeriodEditModal();
+    await loadTimeline();
+    await selectPeriod(editingPeriod.period_key);
+  } catch (e) {
+    alert('保存失败：' + e);
+  } finally {
+    btn.disabled = false; btn.textContent = '保存并重新聚合';
+  }
+}
+
+async function applyInsightToActions() {
+  if (!editingPeriod) return;
+  const path = editingPeriod.period_type === 'week' ? 'weekly' : 'monthly';
+  const insightRes = await fetch(`/api/review/${path}/${encodeURIComponent(editingPeriod.period_key)}/insights`);
+  const insight = await insightRes.json();
+  if (!insight.recommended_next_actions?.length) return;
+  // 合并：现有 + 推荐，去重
+  const merged = [...(editingPeriod.next_actions || []), ...insight.recommended_next_actions];
+  const seen = new Set();
+  const unique = merged.filter(s => { const k = s.trim(); if (!k || seen.has(k)) return false; seen.add(k); return true; });
+  await fetch(`/api/review/${path}/${encodeURIComponent(editingPeriod.period_key)}/plan`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ next_actions: unique }),
+  });
+  await selectPeriod(editingPeriod.period_key);
 }
 
 loadTimeline();
@@ -1171,6 +1831,50 @@ loadTimeline();
   <div class="gantt-tooltip-row" id="gtt-range"></div>
   <div class="gantt-tooltip-row" id="gtt-phase"></div>
   <div class="gantt-tooltip-row" id="gtt-note"></div>
+</div>
+
+<!-- 周/月复盘 编辑模态 -->
+<div class="modal-mask" id="period-edit-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="pe-modal-title">编辑复盘</span>
+      <button class="modal-close" onclick="closePeriodEditModal()">✕</button>
+    </div>
+    <div class="modal-body" id="pe-modal-body">
+      <div class="field-block">
+        <label>📌 一句话总结 <span class="helper">narrative</span></label>
+        <textarea id="pe-narrative" placeholder="例：本周整体偏激进，对 baseline 信号执行不力"></textarea>
+      </div>
+      <div class="field-block" id="pe-thesis-block" style="display:none">
+        <label>🎯 月度主题 <span class="helper">monthly_thesis</span></label>
+        <input type="text" id="pe-thesis" placeholder="例：高位风险阶段贯穿整月，重点防御">
+      </div>
+      <div class="field-block">
+        <label>✅ 关键收获 <span class="helper">每行一条</span></label>
+        <textarea id="pe-takeaways" placeholder="技术面拐点判断准确&#10;主升期加仓节奏到位"></textarea>
+      </div>
+      <div class="field-block">
+        <label>⚠️ 主要错误 <span class="helper">每行一条</span></label>
+        <textarea id="pe-mistakes" placeholder="HIGH_RISK 阶段仍追高&#10;FOMO 进场未设止损"></textarea>
+      </div>
+      <div class="field-block">
+        <label>🔧 改进点 <span class="helper">improvements，每行一条</span></label>
+        <textarea id="pe-improvements" placeholder="高位风险期强制减仓至 30%&#10;FOMO 时强制冷静 30 分钟"></textarea>
+      </div>
+      <div class="field-block">
+        <label>📖 操作手册更新 <span class="helper">playbook_updates，每行一条</span></label>
+        <textarea id="pe-playbook" placeholder="新增规则：契合度 &lt;50 时停止开仓 1 天"></textarea>
+      </div>
+      <div class="field-block">
+        <label>🎯 下期行动 <span class="helper">next_actions，每行一条</span></label>
+        <textarea id="pe-actions" placeholder="重点关注 AI 算力主线&#10;CPI 前一日清空高位股"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-btn" onclick="closePeriodEditModal()">取消</button>
+      <button class="modal-btn primary" id="pe-save-btn" onclick="savePeriodEdit()">保存并重新聚合</button>
+    </div>
+  </div>
 </div>
 <script>
 (function() {

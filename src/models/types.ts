@@ -243,3 +243,90 @@ export interface DailyReviewPlanRequest {
   mistakes?: string[];
   mood_summary?: string;
 }
+
+/* ─────────────────────────────────────────────
+ * 周 / 月 复盘聚合 (Period Review)
+ * ───────────────────────────────────────────── */
+
+export type PeriodType = 'week' | 'month';
+
+/** 通用聚合周期复盘 (周 + 月共用结构) */
+export interface PeriodReview {
+  id: string;
+  period_type: PeriodType;
+  /** 周: 'YYYY-Www' 例 '2026-W17'；月: 'YYYY-MM' 例 '2026-04' */
+  period_key: string;
+  /** 周期起始日期 (YYYY-MM-DD，闭区间) */
+  start_date: string;
+  /** 周期结束日期 (YYYY-MM-DD，闭区间) */
+  end_date: string;
+
+  /* ── 自动聚合的统计指标 ── */
+  operations_count: number;
+  active_days: number;            // 该期内有操作的天数
+  avg_score: number;
+  win_rate?: number;
+  baseline_alignment: number;
+  emotion_distribution: Record<EmotionState, number>;
+  rationale_distribution: Record<RationaleType, number>;
+  stage_distribution: Record<string, number>;     // 期内大盘阶段天数
+  realized_pnl?: number;
+  unrealized_pnl?: number;
+
+  /* ── 文字总结：自动生成 + 用户可覆盖 ── */
+  /** 关键收获（可保持的优势） */
+  key_takeaways: string[];
+  /** 主要错误 */
+  mistakes: string[];
+  /** 重复出现的错误（横向对比子周期识别） */
+  recurring_mistakes: string[];
+  /** 模式洞察：从历史数据中挖掘的行为规律 */
+  pattern_insights: string[];
+  /** 操作手册更新（可执行的规则调整） */
+  playbook_updates: string[];
+  /** 改进点（用户/agent 写入的具体改进方向） */
+  improvements: string[];
+  /** 下一期需要关注/行动 */
+  next_actions: string[];
+  /** 一句话摘要 */
+  narrative?: string;
+  /** 月度主题（仅 month 使用） */
+  monthly_thesis?: string;
+
+  /** 子周期键列表 (周里包含的日期 / 月里包含的周键) */
+  child_keys: string[];
+
+  generated_at: string;
+  generator_version: string;
+}
+
+/** 历史模式洞察输出 (基于过去 N 个同粒度周期对比) */
+export interface PeriodInsight {
+  period_type: PeriodType;
+  current_key: string;
+  compared_keys: string[];       // 参与对比的历史 key
+  /* ── 趋势 ── */
+  score_trend: number[];          // 与 compared_keys 对齐
+  alignment_trend: number[];
+  win_rate_trend: number[];
+  /* ── 提取出来的可执行洞察 ── */
+  recurring_mistakes: string[];   // 历史多次出现的错误
+  recurring_strengths: string[];  // 历史多次出现的优势
+  emotion_warnings: string[];     // 高频负面情绪提示
+  rationale_warnings: string[];   // 高频低质量依据 (impulsive 等)
+  alignment_warnings: string[];   // 契合度持续偏低提醒
+  /* ── 给出的下一期建议 (可一键回填 next_actions) ── */
+  recommended_next_actions: string[];
+  generated_at: string;
+}
+
+export interface PeriodReviewPlanRequest {
+  next_actions?: string[];
+  key_takeaways?: string[];
+  mistakes?: string[];
+  improvements?: string[];
+  playbook_updates?: string[];
+  pattern_insights?: string[];
+  narrative?: string;
+  monthly_thesis?: string;
+}

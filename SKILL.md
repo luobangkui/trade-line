@@ -49,6 +49,65 @@ description: >-
 | POST | `/api/review/daily/:date/aggregate` | 手动重新聚合日度复盘 |
 | POST | `/api/review/daily/:date/plan` | 手写后续计划 / 收获 / 错误 / 情绪总结 |
 
+### 周 / 月复盘接口（Period Review）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET  | `/api/review/weekly?period=YYYY-Www` | 查询某周复盘（不存在则即时聚合）|
+| GET  | `/api/review/weekly?start=&end=`     | 查询周复盘列表 |
+| POST | `/api/review/weekly/:week/aggregate` | 手动重新聚合 |
+| POST | `/api/review/weekly/:week/plan`      | 写入/更新周度文字总结（narrative / 收获 / 错误 / 改进 / 手册 / 行动）|
+| GET  | `/api/review/weekly/:week/insights`  | 基于历史 N 周的模式洞察 + 推荐下期行动 |
+| GET  | `/api/review/weekly/:week/children`  | 该周每日明细列表 |
+| GET  | `/api/review/monthly?period=YYYY-MM` | 同上，月粒度 |
+| POST | `/api/review/monthly/:month/aggregate` | 手动重新聚合月 |
+| POST | `/api/review/monthly/:month/plan`    | 写入/更新月度（含 monthly_thesis）|
+| GET  | `/api/review/monthly/:month/insights`| 月度历史洞察 |
+| GET  | `/api/review/monthly/:month/children`| 该月各周明细 |
+| GET  | `/api/review/period/timeline?type=week\|month&start=&end=` | 区间内全部周/月聚合（缺失自动聚合）|
+
+**周键 / 月键格式：**
+- 周：`YYYY-Www`，使用 ISO 8601 周编号（周一为本周起点）。例：`2026-W17`
+- 月：`YYYY-MM`。例：`2026-04`
+
+**示例：拉取本周复盘 + 历史洞察**
+```bash
+curl -s "{BASE_URL}/api/review/weekly?period=2026-W17"
+curl -s "{BASE_URL}/api/review/weekly/2026-W17/insights?lookback=4"
+```
+
+**示例：写入周复盘文字（agent 用）**
+```bash
+curl -X POST {BASE_URL}/api/review/weekly/2026-W17/plan \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "narrative": "本周 HIGH_RISK 阶段纪律松懈，上头加仓代价沉重",
+    "improvements": ["HIGH_RISK 阶段强制减仓至 30%-50%", "禁止 FOMO 状态下进场"],
+    "playbook_updates": ["新规则: HIGH_RISK 阶段每日开盘前评估持仓，超 50% 强制降至 50%"],
+    "next_actions": ["重点关注 AI 算力主线", "CPI 前一日清空高位股"]
+  }'
+```
+
+**写入月度复盘可额外传 `monthly_thesis`**：
+```bash
+curl -X POST {BASE_URL}/api/review/monthly/2026-04/plan \
+  -d '{ "monthly_thesis": "高位风险阶段贯穿整月，重点防御", ... }'
+```
+
+**聚合规则（Period）**
+- 操作数加权平均：`avg_score / baseline_alignment / win_rate` 按各日 operations_count 加权
+- 文字字段（key_takeaways/mistakes/next_actions）：从子周期 daily review 合并去重 Top N
+- `recurring_mistakes`：同一错误在 ≥2 个子周期出现自动入选
+- `pattern_insights`：自动检测负面情绪占比 ≥40%、低质量依据占比 ≥25%、契合度 <50 等阈值
+- `narrative`：自动生成（"本周共 X 笔操作..."），仅当用户/agent 通过 plan 写入非默认格式时被保留
+- 用户/agent 通过 `plan` 接口写入的字段（improvements/playbook_updates/monthly_thesis）：受保护不被自动覆盖
+
+**洞察（insights）输出**：基于本期之前的 N 期（默认 4），返回：
+- `score_trend / alignment_trend / win_rate_trend`：趋势数组
+- `recurring_mistakes / recurring_strengths`：≥2 期出现的错误/优势
+- `emotion_warnings / rationale_warnings / alignment_warnings`：阈值警示文案
+- `recommended_next_actions`：合并后去重的可执行建议（前端可一键回填到 `next_actions`）
+
 ---
 
 ## 核心概念
