@@ -2244,53 +2244,89 @@ async function applyInsightToActions() {
   await selectPeriod(editingPeriod.period_key);
 }
 
-/* ────────────── 明日权限卡 ────────────── */
+/* ────────────── 交易权限卡 ────────────── */
 let currentPermissionDate = null;
 let currentPermissionCard = null;
+/** 是否由用户在 modal 里主动切换日期（true 时不再带"今日/明日"语义标签） */
+let permissionUserPicked = false;
 
 function permissionStatusLabel(s) {
   return { protect: '🛑 保护', normal: '⚖️ 正常', attack: '🚀 进攻' }[s] || s;
 }
 
-function nextTradingDateYmd() {
-  // 简化：以 timelineData.today 为基准 + 1 天；周末跳到周一
-  const base = (timelineData && timelineData.today) || new Date().toISOString().slice(0, 10);
-  const d = new Date(base + 'T00:00:00');
+function ymdLocal(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+/**
+ * 当前应该显示哪一日的权限卡：
+ * - 工作日 0:00 - 15:00（A 股收盘前）→ 当日（"今日权限"）
+ * - 工作日 15:00 之后 / 周末 → 下一交易日（"明日权限"）
+ * 时区按浏览器本地（中国用户即北京时间）。
+ */
+function activeCardInfo() {
+  const now = new Date();
+  const dow = now.getDay();          // 0=日 6=六
+  const isWeekday = dow >= 1 && dow <= 5;
+  const beforeClose = now.getHours() < 15;
+  if (isWeekday && beforeClose) {
+    return { date: ymdLocal(now), label: '今日权限', kind: 'today' };
+  }
+  const d = new Date(now);
   d.setDate(d.getDate() + 1);
   while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  return { date: ymdLocal(d), label: '明日权限', kind: 'next' };
 }
 
 async function loadPermissionChip() {
   const wrap = document.getElementById('permission-chip');
   if (!wrap) return;
-  const target = nextTradingDateYmd();
+  const info = activeCardInfo();
+  const target = info.date;
   let card = null;
   try {
     const r = await fetch('/api/permission/' + target);
     if (r.ok) card = (await r.json()).card;
   } catch (e) {}
-  currentPermissionCard = card;
-  currentPermissionDate = target;
+  // 如果用户没主动切换过，徽章总是跟随活跃日期
+  if (!permissionUserPicked) {
+    currentPermissionCard = card;
+    currentPermissionDate = target;
+  }
+  const prefix = info.kind === 'today' ? '📅 今日权限' : '🛑 明日权限';
+  const tip = info.kind === 'today' ? '点击查看今日权限卡' : '点击查看下一交易日权限卡';
+  wrap.title = tip;
   if (!card) {
-    wrap.innerHTML = `<span>🛑 明日权限</span><span class="pc-empty" id="pc-chip-status">${target} 未生成</span>`;
+    wrap.innerHTML = `<span>${prefix}</span><span class="pc-empty" id="pc-chip-status">${target} 未生成</span>`;
     return;
   }
   const lock = card.locked ? ' <span class="pc-locked">🔒</span>' : '';
   wrap.innerHTML =
-    `<span>🛑 明日权限</span>` +
+    `<span>${prefix}</span>` +
     `<span class="pc-status ${card.status}" id="pc-chip-status">${permissionStatusLabel(card.status)}</span>` +
     `<span class="pc-meta">${card.date} · 仓${Math.round((card.max_total_position || 0) * 100)}%${card.allow_margin ? ' · 融' : ''}${lock}</span>`;
 }
 
 function openPermissionModal(date) {
-  currentPermissionDate = date || currentPermissionDate || nextTradingDateYmd();
+  if (date) {
+    permissionUserPicked = true;
+    currentPermissionDate = date;
+  } else {
+    permissionUserPicked = false;
+    currentPermissionDate = activeCardInfo().date;
+  }
   renderPermissionModal();
   document.getElementById('permission-modal').classList.add('show');
 }
 
 function closePermissionModal() {
   document.getElementById('permission-modal').classList.remove('show');
+  // 关闭后下次默认回到"跟随时间"模式（盘前=今日 / 盘后=明日）
+  permissionUserPicked = false;
+  loadPermissionChip();
 }
 
 async function renderPermissionModal() {
@@ -2299,7 +2335,15 @@ async function renderPermissionModal() {
   const lockBtn = document.getElementById('pc-lock-btn');
   const delBtn = document.getElementById('pc-delete-btn');
   body.innerHTML = '<div style="color:#94a3b8;padding:20px;text-align:center">加载中…</div>';
-  title.textContent = `🛑 权限卡 · ${currentPermissionDate}`;
+  // 给标题加"今日/明日/自定义"语义标签
+  let semantic = '';
+  if (!permissionUserPicked) {
+    const info = activeCardInfo();
+    if (info.date === currentPermissionDate) {
+      semantic = info.kind === 'today' ? '（今日 · 盘前）' : '（明日 · 盘后）';
+    }
+  }
+  title.textContent = `🛑 权限卡 · ${currentPermissionDate}${semantic}`;
 
   let card = null;
   try {
@@ -2380,7 +2424,8 @@ function jumpPermissionDate() {
 }
 
 (async () => { await loadTimeline(); await loadPermissionChip(); })();
-setInterval(loadPermissionChip, 60000);
+// 30 秒刷新一次，确保 15:00 收盘后徽章自动从"今日"切到"明日"
+setInterval(loadPermissionChip, 30000);
 </script>
 <div class="op-tooltip" id="op-tooltip"></div>
 

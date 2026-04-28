@@ -1,9 +1,12 @@
-# 明日权限卡接口手册（Trading Permission Card）
+# 交易权限卡接口手册（Trading Permission Card）
 
 > 入口：[../SKILL.md](../SKILL.md) ｜ 配套 SOP：[sop-permission.md](./sop-permission.md)
 
 权限卡是**事前刹车机制** — 每个交易日一张卡，定义当日的状态、最大仓位、允许模式、禁止动作。
 后端只做存储 + CRUD，**所有判定逻辑在 agent 这边做**（agent 拉历史数据 → 推理 → POST 写卡）。
+
+> **写卡时的 `date` 字段约定**：写「下一交易日」的卡。例：周一 16:00 写卡 → date=周二。
+> 前端徽章会按"盘前显示今日 / 盘后显示下一交易日"自动切换语义。
 
 ## 接口速查
 
