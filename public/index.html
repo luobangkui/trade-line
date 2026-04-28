@@ -584,6 +584,9 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
 .modal-btn:hover { background: #1e2a3a; }
 .modal-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .modal-btn.primary:hover { opacity: .88; }
+.modal-btn.danger { background: transparent; border-color: #ef444466; color: #ef4444; }
+.modal-btn.danger:hover { background: #450a0a; border-color: #ef4444; }
+.modal-footer-spacer { flex: 1; }
 
 .field-block { display: flex; flex-direction: column; gap: 5px; }
 .field-block label {
@@ -1856,9 +1859,10 @@ function renderPeriodDetail(review, insight, children, journals) {
   `;
 
   const btnHtml = `
-    <div class="detail-section" style="display:flex;gap:8px">
-      <button class="detail-btn" onclick="reaggregatePeriod('${review.period_key}')">↻ 重新聚合</button>
-      <button class="detail-btn" style="background:var(--accent);border-color:var(--accent);color:#fff" onclick="openPeriodEditModal()">✎ 编辑聚合复盘</button>
+    <div class="detail-section" style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="detail-btn" style="flex:1;min-width:90px" onclick="reaggregatePeriod('${review.period_key}')" title="保留你写入的字段，仅重算统计">↻ 重新聚合</button>
+      <button class="detail-btn" style="flex:1;min-width:90px;background:var(--accent);border-color:var(--accent);color:#fff" onclick="openPeriodEditModal()">✎ 编辑</button>
+      <button class="detail-btn" style="flex:1;min-width:90px;background:transparent;border-color:#ef444466;color:#ef4444" onclick="deletePeriodConfirm()" title="物理删除该聚合复盘（含手写内容），下次访问基于最新 daily 数据从零重聚合">🗑 清空重推</button>
     </div>
   `;
 
@@ -1879,6 +1883,25 @@ async function reaggregatePeriod(periodKey) {
   await fetch(`/api/review/${path}/${encodeURIComponent(periodKey)}/aggregate`, { method: 'POST' });
   await loadTimeline();
   await selectPeriod(periodKey);
+}
+
+async function deletePeriodConfirm() {
+  if (!editingPeriod) return;
+  const label = periodFullLabel(editingPeriod);
+  const hasUserContent = (editingPeriod.improvements?.length || 0)
+    + (editingPeriod.playbook_updates?.length || 0)
+    + (editingPeriod.monthly_thesis ? 1 : 0)
+    + ((editingPeriod.narrative && !/^(本周|本月)(无操作|共 \d+ 笔操作)/.test(editingPeriod.narrative)) ? 1 : 0);
+  const warn = hasUserContent
+    ? `\n\n⚠️ 该${VIEW_LABEL[editingPeriod.period_type]}已写入手写内容（narrative / 改进 / 手册等），将一并清空！`
+    : '';
+  if (!confirm(`确定清空 ${label} 的聚合复盘吗？${warn}\n\n• 仅删除聚合记录，daily / operations / journals 不受影响\n• 下次访问会基于最新数据自动重新聚合（纯自动版本）`)) return;
+
+  const path = editingPeriod.period_type === 'week' ? 'weekly' : 'monthly';
+  await fetch(`/api/review/${path}/${encodeURIComponent(editingPeriod.period_key)}?reaggregate=1`, { method: 'DELETE' });
+  closePeriodEditModal();
+  await loadTimeline();
+  await selectPeriod(editingPeriod.period_key);
 }
 
 function drillDownChild(key, parentType) {
@@ -2318,6 +2341,8 @@ loadTimeline();
       </div>
     </div>
     <div class="modal-footer">
+      <button class="modal-btn danger" id="pe-delete-btn" onclick="deletePeriodConfirm()" title="物理删除该周/月聚合复盘记录，包含已写入的 narrative/改进/手册等所有内容；下次访问会基于最新 daily 数据自动重新聚合">🗑 清空重推</button>
+      <div class="modal-footer-spacer"></div>
       <button class="modal-btn" onclick="closePeriodEditModal()">取消</button>
       <button class="modal-btn primary" id="pe-save-btn" onclick="savePeriodEdit()">保存并重新聚合</button>
     </div>

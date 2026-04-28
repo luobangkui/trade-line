@@ -59,12 +59,36 @@ description: >-
 | POST | `/api/review/weekly/:week/plan`      | 写入/更新周度文字总结（narrative / 收获 / 错误 / 改进 / 手册 / 行动）|
 | GET  | `/api/review/weekly/:week/insights`  | 基于历史 N 周的模式洞察 + 推荐下期行动 |
 | GET  | `/api/review/weekly/:week/children`  | 该周每日明细列表 |
+| **DELETE** | **`/api/review/weekly/:week`** | **物理删除该周聚合复盘（含手写内容）；带 `?reaggregate=1` 立即重聚合** |
 | GET  | `/api/review/monthly?period=YYYY-MM` | 同上，月粒度 |
 | POST | `/api/review/monthly/:month/aggregate` | 手动重新聚合月 |
 | POST | `/api/review/monthly/:month/plan`    | 写入/更新月度（含 monthly_thesis）|
 | GET  | `/api/review/monthly/:month/insights`| 月度历史洞察 |
 | GET  | `/api/review/monthly/:month/children`| 该月各周明细 |
+| **DELETE** | **`/api/review/monthly/:month`** | **物理删除该月聚合复盘** |
 | GET  | `/api/review/period/timeline?type=week\|month&start=&end=` | 区间内全部周/月聚合（缺失自动聚合）|
+
+**「清空重推」语义（DELETE 接口）：**
+- 物理删除 `weekly_reviews` / `monthly_reviews` 表中该 period_key 的记录
+- **不影响** daily_reviews / trade_operations / review_journals（彼此完全独立）
+- 下次访问 `GET /weekly|monthly?period=...` 时**懒聚合**自动产生纯自动版本（用户/agent 之前手写的 narrative / improvements / playbook_updates / monthly_thesis 全部丢失）
+- 适用场景：agent 写错想清空重来 / 想测试纯自动聚合输出 / 想重置后让 agent 重新生成
+
+```bash
+# 仅删除（下次 GET 时再懒聚合）
+curl -X DELETE {BASE_URL}/api/review/weekly/2026-W17
+
+# 删除并立即重聚合，返回新的纯自动版本
+curl -X DELETE {BASE_URL}/api/review/weekly/2026-W17?reaggregate=1
+```
+
+**三种"重置"操作的差异：**
+
+| 操作 | 接口 | 影响 |
+|---|---|---|
+| 重新聚合 | `POST /aggregate` | **保留**用户写入字段，仅重算统计 |
+| 编辑覆盖 | `POST /plan` | 仅更新指定字段，其他保留 |
+| 清空重推 | `DELETE` | **完全清掉**包含手写内容，回到纯自动 |
 
 **周键 / 月键格式：**
 - 周：`YYYY-Www`，使用 ISO 8601 周编号（周一为本周起点）。例：`2026-W17`

@@ -4,7 +4,7 @@ import {
   insertOperation, getOperationsByDate, getOperationById, getOperationsByRange,
   deleteOperation, insertEvaluation, getEvaluationsByOperation, getEvaluationsByDate,
   getDailyReview, getDailyReviewsByRange, upsertDailyReview, getSnapshotByDate,
-  getPeriodReview, getPeriodReviewsByRange, getAllPeriodReviews,
+  getPeriodReview, getPeriodReviewsByRange, getAllPeriodReviews, deletePeriodReview,
   insertJournal, getJournalById, getJournalsByPeriod, listJournals, updateJournal, deleteJournal,
 } from '../db/store';
 import { aggregateDailyReview } from '../services/reviewer';
@@ -243,6 +243,20 @@ function attachPeriodRoutes(pathPrefix: 'weekly' | 'monthly') {
     try {
       const items = listChildSummaries(type, req.params.period);
       res.json(items);
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  // DELETE /api/review/(weekly|monthly)/:period
+  //   物理删除该聚合复盘（含用户写入字段）。下次访问时会基于最新 daily 数据自动重聚合。
+  //   ?reaggregate=1 时立即重聚合并返回新的纯自动版本。
+  router.delete(`/${pathPrefix}/:period`, (req: Request, res: Response) => {
+    try {
+      const deleted = deletePeriodReview(type, req.params.period);
+      const reaggregate = req.query['reaggregate'] === '1' || req.query['rebuild'] === '1';
+      const review = reaggregate ? aggregatePeriodReview(type, req.params.period) : null;
+      res.json({ success: true, deleted, review });
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }

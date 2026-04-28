@@ -280,6 +280,20 @@ export function getRecentPeriodReviewsBefore(
   return all.slice(-n);
 }
 
+/** 物理删除指定周/月聚合复盘（不影响 daily / operations / journals） */
+export function deletePeriodReview(type: PeriodType, periodKey: string): boolean {
+  const db = load();
+  const arr = periodBucket(db, type);
+  const before = arr.length;
+  if (type === 'week') {
+    db.weekly_reviews = arr.filter((r) => r.period_key !== periodKey);
+  } else {
+    db.monthly_reviews = arr.filter((r) => r.period_key !== periodKey);
+  }
+  save(db);
+  return periodBucket(db, type).length < before;
+}
+
 // ── Review Journals (完全独立的复盘日志) ──────────────
 export function insertJournal(j: ReviewJournal): ReviewJournal {
   const db = load();
