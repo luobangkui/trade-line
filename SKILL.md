@@ -1,12 +1,86 @@
 ---
-name: trade-baseline-sync
+name: trade-baseline-review
 description: >-
-  向 Trade Baseline v2 时间轴决策系统同步数据的技能。支持上传市场快照、事件、情绪指标、
-  未来观察项、交易预案等原子输入，并可触发聚合、人工修正（override）或完全重写（reset）。
+  Trade Baseline v2 复盘工作助手技能。Agent 可使用本技能完成完整的复盘闭环：
+  (1) 同步市场客观基线（阶段、情绪、事件、未来观察）；
+  (2) 记录用户交易操作并生成评估；
+  (3) 自动聚合日/周/月复盘统计 + 历史模式洞察；
+  (4) 写入完全独立的复盘日志报告（长文 + 自由小节 + 元数据）；
+  (5) 在多种接口间正确选择：编辑覆盖 / 重新聚合 / 清空重推 / 单条删除。
   BASE_URL 为可变参数，默认生产地址 http://vzil1451410.bohrium.tech:50001。
 ---
 
-# Trade Baseline v2 — Agent 数据同步技能
+# Trade Baseline v2 — Agent 复盘工作助手
+
+> **🎯 本 skill 的目标**：让 agent 不只是"同步数据"，而是能完整执行复盘工作 —
+> 从拉取市场数据到生成评估、识别行为模式、写出可执行的改进规则。
+
+## 🗺️ 能力地图
+
+```
+        ┌─ 客观面 ──────────────────────────────────────┐
+        │  baseline (市场基线)                           │
+        │    ├─ snapshot      当日阶段/情绪/风险         │
+        │    ├─ event         市场事件                   │
+        │    ├─ future        未来观察项                 │
+        │    └─ override      人工修正                    │
+        └────────────────────────────────────────────────┘
+                              ↕ 双向关联
+        ┌─ 主观面 ──────────────────────────────────────┐
+        │  review (个人复盘)                             │
+        │    ├─ operation     一笔操作                    │
+        │    ├─ evaluation    操作评估 (agent/self)       │
+        │    └─ daily         当日复盘汇总 (自动)         │
+        └────────────────────────────────────────────────┘
+                              ↕ 时间聚合
+        ┌─ 聚合面 ──────────────────────────────────────┐
+        │  period (周/月聚合) ← 自动 + 编辑覆盖           │
+        │  journal (独立日志) ← 纯自由写，可多篇           │
+        │  insights (历史洞察) ← 基于历史 N 期对比生成     │
+        └────────────────────────────────────────────────┘
+```
+
+## 🧭 接口选择决策树（开始任何工作前先看这里）
+
+```
+你要做什么？
+│
+├─ 写入"客观市场"信息
+│   ├─ 当日的阶段/情绪/事件 → POST /api/baseline/input
+│   ├─ 未来要发生的事件      → POST /api/baseline/input (data_type=future_event)
+│   ├─ 修正之前 agent 的误判  → POST /api/baseline/override
+│   └─ 完全清空某日重来       → POST /api/baseline/reset/:date
+│
+├─ 写入"用户操作 / 个人复盘"
+│   ├─ 一笔具体操作          → POST /api/review/operation
+│   ├─ 给某笔操作打分/评价    → POST /api/review/operation/:id/eval
+│   ├─ 当日总结 / 计划        → POST /api/review/daily/:date/plan
+│   └─ 删错某笔操作          → DELETE /api/review/operation/:id
+│
+├─ 写入/修改"周或月的聚合复盘"
+│   ├─ 让系统自动重聚合        → POST /api/review/weekly|monthly/:key/aggregate
+│   ├─ 改 narrative/改进/手册  → POST /api/review/weekly|monthly/:key/plan
+│   ├─ 推倒重来（含手写内容） → DELETE /api/review/weekly|monthly/:key?reaggregate=1
+│   └─ 想看历史模式洞察       → GET  /api/review/weekly|monthly/:key/insights
+│
+├─ 写入"自由复盘日志"（一周/月可写多篇长文）
+│   ├─ 新建一篇                → POST /api/review/journal
+│   ├─ 增量补内容              → PATCH /api/review/journal/:id
+│   ├─ 完整替换                → PUT /api/review/journal/:id
+│   └─ 删错一篇                → DELETE /api/review/journal/:id
+│
+└─ 查询/读取
+    ├─ 某日全景                → GET /api/baseline/snapshot?date= + GET /api/review/daily?date=
+    ├─ 时间区间                → GET /api/baseline/timeline?start=&end=
+    ├─ 周/月时间轴             → GET /api/review/period/timeline?type=week&start=&end=
+    └─ 全部日志（带过滤）       → GET /api/review/journals?scope=&tag=&search=
+```
+
+> **关键原则**：
+> 1. **写入不破坏**：所有 POST/PATCH 默认是"追加 + 自动聚合"，不会丢失之前的数据
+> 2. **修正用 override / plan**：在原数据上叠加，不要直接 reset
+> 3. **重置用 reset / DELETE**：明确知道要清空时才用，不可恢复
+> 4. **agent 写入永远带 source 标识**：`source: "agent:你的名字"`，便于追溯
 
 ## 配置
 
@@ -529,7 +603,7 @@ Content-Type: application/json
 
 ---
 
-## 8. 典型 Agent 工作流
+## 8. 典型 Agent 工作流（简化版 — 完整 SOP 见后文「🎯 复盘 Agent 工作流 SOP」章节）
 
 ### 盘后复盘 Agent
 ```
@@ -604,7 +678,7 @@ Content-Type: application/json
 - 包含：胜率、平均评分、Baseline 契合度、情绪/依据分布、关键收获、主要错误、后续计划、情绪总结
 - 用户可通过 `POST /daily/:date/plan` 手写覆盖 `next_actions` / `key_takeaways` / `mistakes` / `mood_summary`
 
-### 典型流程
+### 典型流程（简化示例 — 完整周/月复盘 SOP 见后文「🎯 复盘 Agent 工作流 SOP」章节）
 
 #### 1. 用户/Agent 写入操作
 ```bash
@@ -676,3 +750,373 @@ curl -X POST {BASE_URL}/api/review/daily/2026-04-15/plan \
 - **聚合自动触发**：写入 operation 或 evaluation 后立即重新聚合 `daily_review`，无需手动调用
 - **next_actions 智能合并**：若用户已手写 plan，聚合时不会覆盖；若用户未填，自动用所有评估的 suggestions 去重填充
 - **删除级联**：`DELETE /operation/:id` 会同时清理该操作的所有 evaluations
+
+---
+
+# 🎯 复盘 Agent 工作流 SOP（核心章节）
+
+> 上面的"接口速查"和"字段定义"是手册；这一节是**操作指南**。
+> Agent 在执行复盘任务时，**优先遵循这里的 SOP**，再去查具体接口。
+
+## SOP-A：盘后日复盘（每日收盘后）
+
+**目标**：把当日的客观市场和主观操作完整复盘归档，为周复盘奠基。
+
+```
+1. 获取数据
+   ├─ GET /api/baseline/snapshot?date=$today    （客观市场）
+   └─ GET /api/review/operations?date=$today    （主观操作）
+
+2. 补齐缺失的市场数据（如果 snapshot 不完整）
+   POST /api/baseline/input  data_type=market_snapshot  payload.emotion_score / events / limit_up
+   POST /api/baseline/input  data_type=stage_signal     payload.preferred_styles / avoid_styles
+
+3. 对每笔操作生成评估（核心）
+   for op in operations:
+     分析维度：
+       a) 与 baseline 契合度：op.linked_baseline_stage 是否合理？
+       b) 依据质量：rationale_type ∈ {impulsive, emotion} → 扣分
+       c) 情绪健康度：emotion_state ∈ {fomo, panic, revenge} → 警示
+       d) 结果：若有 price → 看涨跌验证
+     输出 evaluation：
+       POST /api/review/operation/$op.id/eval
+       { evaluator:"agent:你的名字", score, verdict, alignment_score,
+         pros:[...], cons:[...], suggestions:[...] }
+
+4. 写入当日复盘计划
+   POST /api/review/daily/$today/plan
+   { next_actions:[...], key_takeaways:[...], mistakes:[...], mood_summary }
+
+5. 自检（必做）
+   - 是否每笔操作都有 evaluation？
+   - mood_summary 是否提到主导情绪和主导依据？
+   - next_actions 是否具体到"做什么"，而非"要小心"这种空话？
+```
+
+## SOP-B：周复盘（周末或周一早盘前）
+
+**目标**：跳出单日得失，识别本周的行为模式，输出可执行的周度规则。
+
+```
+1. 自动聚合（一行触发）
+   POST /api/review/weekly/$week/aggregate
+   → 系统会基于本周所有 daily_review 生成统计 + 自动文字
+
+2. 拉取本周聚合 + 历史洞察 + 子周期明细
+   GET /api/review/weekly?period=$week
+   GET /api/review/weekly/$week/insights?lookback=4   ← 关键：与过去 4 周对比
+   GET /api/review/weekly/$week/children              ← 7 天明细
+
+3. 综合分析（agent 推理重点）
+   a) 比对 insights 中的 score_trend / alignment_trend
+      - 上升趋势？说明在改进，强化保持点
+      - 下降趋势？必须找到原因
+   b) 比对 recurring_mistakes
+      - 历史 ≥2 次出现的错误 + 本周仍在 → 必须升级为 playbook 规则
+   c) 分析 emotion / rationale 分布
+      - FOMO/impulsive 占比 >25% → 必须列入 improvements
+
+4. 写入周复盘文字（核心动作）
+   POST /api/review/weekly/$week/plan
+   {
+     narrative: "一句话总结本周的核心叙事（不是统计描述）",
+     key_takeaways: ["3-5 条具体的、可复用的优势"],
+     mistakes:      ["3-5 条具体的、有因果的错误"],
+     improvements:  ["每条都是可执行的具体规则"],
+     playbook_updates: ["新规则: ..." 用于持久化到操作手册],
+     next_actions:  ["下周第一周要做的 3-6 件事"]
+   }
+
+5. 写一篇周记（可选但推荐 — 长文叙事）
+   POST /api/review/journal
+   { scope:"week", period_key:"$week", title:"...",
+     summary:"...", body:"## ... markdown 长文",
+     sections:[{title:"宏观",content:"..."}, ...],
+     status:"final", source:"agent:你的名字",
+     metadata:{ model, input_tokens, ... } }
+
+6. 自检
+   - playbook_updates 是否真的"可执行"（含数字阈值/明确触发条件）？
+   - 是否把 insights 中的 recurring_mistakes 至少处理了一条？
+   - narrative 是否避免了"统计复读"（"本周共 4 笔操作..."这种）？
+```
+
+## SOP-C：月复盘（每月初 1-3 日）
+
+**目标**：识别月度主题，沉淀 1-2 条核心 playbook，规划下月策略。
+
+```
+1. 触发月聚合 + 拉取数据
+   POST /api/review/monthly/$month/aggregate
+   GET /api/review/monthly?period=$month
+   GET /api/review/monthly/$month/insights
+   GET /api/review/monthly/$month/children   ← 4-5 周明细
+
+2. 分析（重点不同于周）
+   a) 月度主题：从 stage_distribution 找出主导阶段（如"主升期 6 天 + 高位 8 天"）
+   b) 阶段切换的反应：在阶段切换日（CHAOS→REPAIR→MAIN_UP→HIGH_RISK）你做对了什么/错了什么
+   c) 月度纪律性：active_days/总交易日 < 50% 是好事还是坏事？取决于阶段
+   d) PnL 与契合度的关系：契合度高 ≠ 赚钱，要追问
+
+3. 写入月度复盘
+   POST /api/review/monthly/$month/plan
+   {
+     monthly_thesis: "本月的核心叙事（一句话定调）",
+     narrative: "...",
+     key_takeaways / mistakes / improvements / playbook_updates / next_actions
+   }
+
+4. 写一篇月报 journal（强烈推荐）
+   POST /api/review/journal
+   { scope:"month", period_key:"$month",
+     title:"X月月报 - <主题词>",
+     summary:"...",
+     body:"## 月度总览\n## 关键转折\n## 月度自评\n...",
+     sections:[
+       {title:"数据复盘",kind:"data",content:"胜率/收益/回撤"},
+       {title:"心理复盘",kind:"reflection",content:"..."},
+       {title:"下月策略",kind:"plan",content:"..."}
+     ],
+     status:"final", source:"agent:你的名字" }
+
+5. 自检
+   - monthly_thesis 是否一句话能概括？
+   - 是否产生了至少 1 条月度级别的 playbook（不是周级别的细节）？
+   - 月报 journal 是否有"下月策略"小节？
+```
+
+## SOP-D：纠错与重置（遇到 agent 误判或想推倒重来）
+
+| 场景 | 推荐操作 |
+|---|---|
+| 某笔操作记录写错 | `DELETE /api/review/operation/:id` (会级联清评估) |
+| 某条 baseline 误判 | `POST /api/baseline/override` (高优先级覆盖，原数据保留) |
+| 某日 baseline 完全推倒 | `POST /api/baseline/reset/:date` (物理删除当日所有 inputs) |
+| 周/月聚合写错（含手写）| `DELETE /api/review/weekly|monthly/:key?reaggregate=1` (清空并重聚合) |
+| 单篇日志写错 | `DELETE /api/review/journal/:id` |
+| 仅想刷新统计、保留手写 | `POST /api/review/weekly|monthly/:key/aggregate` (这是默认行为) |
+| Agent 增量补充日志内容 | `PATCH /api/review/journal/:id` (推荐！比 PUT 安全) |
+
+---
+
+# 📐 复盘内容质量准则（agent 必读）
+
+写入文字字段时，**永远遵循这张表**。差的复盘和好的复盘的差距，几乎全在表达精度上。
+
+## key_takeaways（关键收获）
+
+| ❌ 反例 | ✅ 正例 |
+|---|---|
+| "今天表现不错" | "REPAIR_CONFIRM 阶段加仓主线核心标的的策略奏效，单笔 +5.2%" |
+| "保持纪律性" | "在 emotion=82 时主动选择减仓 50%，避免了后续 -3% 的回撤" |
+| "心态稳定" | "盘中出现板块异动时，按 baseline 信号继续持有未追涨，结果验证了主升趋势" |
+
+**判断标准**：含**具体场景**（阶段/价位/事件）+ **具体行为** + **可量化结果或可复用规则**。
+
+## mistakes（主要错误）
+
+| ❌ 反例 | ✅ 正例 |
+|---|---|
+| "亏钱了" | "HIGH_RISK 阶段 (emotion=82) 仍开仓追高 300750，违反 baseline 减仓信号，单笔 -7%" |
+| "不该追高" | "4/9 在 FOMO 状态下加仓宁德，进场点比 4/7 高 4.2%，是上头加仓" |
+| "情绪化" | "连续两笔失败后产生 revenge 情绪，立刻在 4/14 复仇式开仓，再亏 -5%" |
+
+**判断标准**：含**触发场景** + **违反了什么规则** + **结果或代价**。每条 mistake 都应该能直接转成一条 improvement。
+
+## improvements（改进点）
+
+| ❌ 反例 | ✅ 正例 |
+|---|---|
+| "要更冷静" | "FOMO 状态触发时强制冷静 30 分钟，期间禁止下单" |
+| "控制仓位" | "HIGH_RISK 阶段（emotion>78）开盘前若仓位>50%，强制减至 50% 以下" |
+| "不追高" | "单笔进场点位若高于近 5 日均价 3% 以上，必须回滚等待" |
+
+**判断标准**：**触发条件 + 阈值 + 强制动作** 三件套。能写成 if-then 规则的才算。
+
+## playbook_updates（操作手册更新）
+
+| ❌ 反例 | ✅ 正例 |
+|---|---|
+| "纪律性" | "新规则: baseline 契合度连续 3 天 <50% 自动暂停交易 1 天" |
+| "学会止盈" | "新规则: 单笔浮盈 >10% 时自动挂单减仓 50%，剩余仓位移止损至成本价" |
+
+**判断标准**：是**长期规则**而非**本周特定动作**；通常以"新规则:"或"调整规则:"开头。
+
+## next_actions（下期行动）
+
+| ❌ 反例 | ✅ 正例 |
+|---|---|
+| "继续观察" | "周一开盘观察主线 5 分钟成交量，若<10亿则继续空仓" |
+| "保持耐心" | "本周内若出现 2 个交易日 alignment <50%，触发周中冷静日，停止新开仓" |
+
+**判断标准**：含**时间节点** + **观察对象** + **触发条件**。
+
+## monthly_thesis（月度主题，仅月）
+
+| ❌ 反例 | ✅ 正例 |
+|---|---|
+| "市场震荡" | "高位风险阶段贯穿整月，重点防御，防止主升幻觉" |
+| "关注政策" | "主升 → 高位过渡月，前期吃肉后期防守，教训在月中切换太晚" |
+
+**判断标准**：一句话能让任何人秒懂这个月发生了什么 + 你的应对态度。
+
+---
+
+# 📚 端到端示例：一次完整的周复盘 Agent
+
+> 模拟"周复盘 agent"在周日晚执行的完整流程。BASE_URL=http://localhost:50001
+
+```bash
+WEEK="2026-W17"
+AGENT="agent:weekly-reviewer"
+
+# === Step 1: 拉取本周聚合数据 ===
+REVIEW=$(curl -s "$BASE_URL/api/review/weekly?period=$WEEK")
+INSIGHTS=$(curl -s "$BASE_URL/api/review/weekly/$WEEK/insights?lookback=4")
+CHILDREN=$(curl -s "$BASE_URL/api/review/weekly/$WEEK/children")
+
+# 关键字段：
+#   REVIEW.avg_score / .baseline_alignment / .emotion_distribution
+#   INSIGHTS.recurring_mistakes / .alignment_trend / .recommended_next_actions
+#   CHILDREN[*].avg_score 看每天波动
+
+# === Step 2: 模型推理（伪代码）===
+# - 分析本周与历史 4 周的对比
+# - 提取本周的核心叙事
+# - 把 INSIGHTS.recurring_mistakes 转化为 1-2 条 playbook_updates
+
+# === Step 3: 写入周复盘文字 ===
+curl -X POST "$BASE_URL/api/review/weekly/$WEEK/plan" -H 'Content-Type: application/json' -d '{
+  "narrative": "本周虽无操作，但市场结构明显从主升切向高位风险，空仓策略验证有效",
+  "key_takeaways": [
+    "在 HIGH_RISK 信号出现的第一时间清仓避险，避免了后续 -3% 的回撤",
+    "通过监控炸板率从 12% 升至 38% 提前识别风格切换"
+  ],
+  "mistakes": [
+    "本周前两天对主升尾段的恋战导致空仓时间过晚 1 天"
+  ],
+  "improvements": [
+    "建立每周观察清单：炸板率、涨停板高度、领涨股换手率",
+    "HIGH_RISK 阶段强制空仓 1 个交易日观察，禁止任何开仓"
+  ],
+  "playbook_updates": [
+    "新规则：连续 3 天炸板率 >30% 自动触发空仓评估"
+  ],
+  "next_actions": [
+    "周一开盘观察主线 5 分钟量能，<10 亿则继续观望",
+    "若高位股普跌则切换为低位补涨标的扫描模式"
+  ]
+}'
+
+# === Step 4: 写一篇详细周记（长文 + 元数据，便于追溯）===
+curl -X POST "$BASE_URL/api/review/journal" -H 'Content-Type: application/json' -d "{
+  \"scope\": \"week\",
+  \"period_key\": \"$WEEK\",
+  \"title\": \"W17 周记 - 主升尾段到高位过渡的识别\",
+  \"summary\": \"本周市场结构明显从主升切向高位风险，提前识别风格切换避免回撤\",
+  \"body\": \"## 总览\n本周市场结构变化明显，炸板率从周一 12% 上升到周五 38%。\n\n## 关键观察\n- AI 算力主线虽强但内部分化\n- 高位股开始显著分歧\n\n## 反思\n仍有 1 天的恋战，需在 HIGH_RISK 信号当日就行动。\",
+  \"sections\": [
+    {\"title\": \"宏观面\", \"kind\": \"analysis\", \"content\": \"央行流动性净投放 3000 亿\"},
+    {\"title\": \"板块观察\", \"kind\": \"analysis\", \"content\": \"AI 分化为算力链/应用链/数据要素\"},
+    {\"title\": \"下周交易思路\", \"kind\": \"plan\", \"content\": \"主线低位补涨 + 严格执行 HIGH_RISK 规则\"}
+  ],
+  \"key_takeaways\": [\"提前识别高位分歧避免回撤\"],
+  \"improvements\": [\"建立每周观察清单\"],
+  \"playbook_updates\": [\"新规则：连续 3 天炸板率 >30% 自动触发空仓评估\"],
+  \"next_actions\": [\"周一开盘观察主线 5 分钟量能\"],
+  \"tags\": [\"周记\", \"市场观察\", \"agent生成\"],
+  \"source\": \"$AGENT\",
+  \"status\": \"final\",
+  \"metadata\": {\"model\": \"claude-opus-4.7\", \"input_tokens\": 12500, \"based_on_insights\": true}
+}"
+
+# === Step 5: 自检（必做）===
+# 重新拉一次确认
+curl -s "$BASE_URL/api/review/weekly?period=$WEEK" | jq '.improvements, .playbook_updates, .next_actions'
+curl -s "$BASE_URL/api/review/journals?scope=week&period_key=$WEEK" | jq '.items[] | {title, status, source}'
+```
+
+**这个 agent 完成了什么**：
+1. ✅ 拉取了客观聚合 + 历史洞察 + 子明细三方面数据
+2. ✅ 把历史 recurring_mistakes 转成了 playbook
+3. ✅ 写了具体的 improvements（含触发条件 + 动作）
+4. ✅ 写了一篇带 metadata 的可追溯日志
+5. ✅ 自检确认所有写入生效
+
+---
+
+# 🤖 Agent 多角色协作建议
+
+不同的 agent 应当承担不同的复盘职责，**通过 source 字段区分**：
+
+| Agent 角色 | source | 主要职责 | 触发时机 |
+|---|---|---|---|
+| `news_agent` | agent:news | 写入 baseline event/future_event | 实时新闻发生 |
+| `quant_agent` | agent:quant | 写入 market_snapshot/emotion_metric | 收盘后 |
+| `strategy_agent` | agent:strategy | 写入 stage_signal/position_suggestion | 开盘前 |
+| `daily_reviewer` | agent:daily | 给操作打分 + 写 daily plan | 收盘后 |
+| `weekly_reviewer` | agent:weekly | 周聚合 + 周记 | 周日晚 |
+| `monthly_reviewer` | agent:monthly | 月聚合 + 月报 | 月初 1-3 日 |
+| `orchestrator` | agent:orchestrator | 检查数据完整度 / override 修正 | 每日固定时间 |
+
+**协作示例**：
+- `news_agent` 全天监听新闻 → 写入 future_event
+- 收盘后 `quant_agent` 写入快照 → `strategy_agent` 写入阶段信号
+- `daily_reviewer` 拉取所有 op + snapshot → 给操作打分 → 写 daily plan
+- 每周日晚 `weekly_reviewer` 触发周聚合 → 写 plan + journal
+- `orchestrator` 在每个环节后检查完整度，必要时 override
+
+---
+
+# ✅ 最终自检清单（每次复盘任务结束前对照）
+
+- [ ] 所有写入都带了 `source: "agent:..."` 标识
+- [ ] 写入失败时是否检查了 HTTP 状态码 / response.error
+- [ ] 文字字段是否符合"质量准则"（含具体场景 + 触发条件 + 量化）
+- [ ] 没有产生空话/口号式内容
+- [ ] 是否处理了 insights 中的 recurring_mistakes（至少 1 条）
+- [ ] 是否避免了重复写入（用 GET 先确认 / 用 PATCH 而非新建）
+- [ ] 长文 journal 是否有 status=final（草稿请用 draft）
+- [ ] 涉及金额/价格的数字是否准确（不要捏造）
+- [ ] 远程调用是否带 `--noproxy '*'`（在沙箱内部）
+
+---
+
+# 📦 附：常用 agent 代码片段
+
+```python
+import requests, datetime
+BASE_URL = "http://localhost:50001"
+
+def post(path, body):
+    r = requests.post(f"{BASE_URL}{path}", json=body, timeout=10)
+    r.raise_for_status()
+    return r.json()
+
+def get(path, **params):
+    r = requests.get(f"{BASE_URL}{path}", params=params, timeout=10)
+    r.raise_for_status()
+    return r.json()
+
+# === 一键周复盘 ===
+def weekly_review(week_key, agent_name="agent:weekly"):
+    post(f"/api/review/weekly/{week_key}/aggregate", {})
+    review   = get(f"/api/review/weekly", period=week_key)
+    insights = get(f"/api/review/weekly/{week_key}/insights")
+    children = get(f"/api/review/weekly/{week_key}/children")
+    # ... LLM 推理 ...
+    plan = build_plan(review, insights, children)   # 你的推理函数
+    post(f"/api/review/weekly/{week_key}/plan", plan)
+    post(f"/api/review/journal", build_journal(plan, agent_name))
+
+# === 一键日复盘 ===
+def daily_review(date, agent_name="agent:daily"):
+    snap = get(f"/api/baseline/snapshot", date=date)
+    ops  = get(f"/api/review/operations", date=date)
+    for op in ops:
+        ev = evaluate_operation(op, snap)
+        ev["evaluator"] = agent_name
+        post(f"/api/review/operation/{op['id']}/eval", ev)
+    plan = build_daily_plan(ops, snap)
+    post(f"/api/review/daily/{date}/plan", plan)
+```
