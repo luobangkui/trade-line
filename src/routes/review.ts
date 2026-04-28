@@ -5,6 +5,7 @@ import {
   deleteOperation, insertEvaluation, getEvaluationsByOperation, getEvaluationsByDate,
   getDailyReview, getDailyReviewsByRange, upsertDailyReview, getSnapshotByDate,
   getPeriodReview, getPeriodReviewsByRange, getAllPeriodReviews,
+  insertJournal, getJournalById, getJournalsByPeriod, listJournals, updateJournal, deleteJournal,
 } from '../db/store';
 import { aggregateDailyReview } from '../services/reviewer';
 import {
@@ -16,6 +17,7 @@ import type {
   OperationEvaluation, OperationEvaluationUploadRequest,
   DailyReviewPlanRequest,
   PeriodType, PeriodReviewPlanRequest,
+  ReviewJournal, ReviewJournalCreateRequest, ReviewJournalPatchRequest,
 } from '../models/types';
 
 const router = Router();
@@ -249,6 +251,126 @@ function attachPeriodRoutes(pathPrefix: 'weekly' | 'monthly') {
 
 attachPeriodRoutes('weekly');
 attachPeriodRoutes('monthly');
+
+/* ─────────────────────────────────────────────
+ * 复盘日志 (Review Journal) — 完全独立、自由写入
+ * 适合 agent 总结报告 / 周记 / 月记，不依赖任何 daily 数据
+ * ───────────────────────────────────────────── */
+
+function makeJournal(body: ReviewJournalCreateRequest): ReviewJournal {
+  const now = new Date().toISOString();
+  return {
+    id: uuidv4(),
+    scope: body.scope,
+    period_key: body.period_key,
+    start_date: body.start_date,
+    end_date: body.end_date,
+    title: body.title,
+    summary: body.summary,
+    body: body.body,
+    sections: body.sections ?? [],
+    market_observation: body.market_observation,
+    strategy_review: body.strategy_review,
+    key_takeaways: body.key_takeaways ?? [],
+    mistakes: body.mistakes ?? [],
+    improvements: body.improvements ?? [],
+    playbook_updates: body.playbook_updates ?? [],
+    next_actions: body.next_actions ?? [],
+    tags: body.tags ?? [],
+    source: body.source ?? 'manual',
+    status: body.status ?? 'draft',
+    metadata: body.metadata,
+    created_at: now,
+    updated_at: now,
+    created_by: body.created_by ?? body.source ?? 'self',
+  };
+}
+
+// POST /api/review/journal — 创建一篇日志
+router.post('/journal', (req: Request, res: Response) => {
+  try {
+    const body = req.body as ReviewJournalCreateRequest;
+    if (!body.scope || !body.period_key || !body.title) {
+      return res.status(400).json({ error: '缺少必填字段：scope, period_key, title' });
+    }
+    if (!['week', 'month', 'custom'].includes(body.scope)) {
+      return res.status(400).json({ error: 'scope 必须为 week/month/custom' });
+    }
+    const j = insertJournal(makeJournal(body));
+    res.json({ success: true, journal: j });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// GET /api/review/journals  列表查询
+//   ?scope=week&period_key=2026-W17     （某个周/月/自定义下所有日志）
+//   ?tag=&status=&source=&search=&limit=&offset=
+router.get('/journals', (req: Request, res: Response) => {
+  const scope = req.query['scope'] as ReviewJournal['scope'] | undefined;
+  const periodKey = req.query['period_key'] as string | undefined;
+  if (scope && periodKey) {
+    return res.json({ items: getJournalsByPeriod(scope, periodKey), total: undefined });
+  }
+  const result = listJournals({
+    scope,
+    tag: req.query['tag'] as string | undefined,
+    status: req.query['status'] as ReviewJournal['status'] | undefined,
+    source: req.query['source'] as string | undefined,
+    search: req.query['search'] as string | undefined,
+    limit: req.query['limit'] ? Number(req.query['limit']) : undefined,
+    offset: req.query['offset'] ? Number(req.query['offset']) : undefined,
+  });
+  res.json(result);
+});
+
+// GET /api/review/journal/:id
+router.get('/journal/:id', (req: Request, res: Response) => {
+  const j = getJournalById(req.params.id);
+  if (!j) return res.status(404).json({ error: 'journal 不存在' });
+  res.json(j);
+});
+
+// PATCH /api/review/journal/:id  局部更新（agent 增量写入推荐用此接口）
+router.patch('/journal/:id', (req: Request, res: Response) => {
+  try {
+    const body = req.body as ReviewJournalPatchRequest;
+    const j = updateJournal(req.params.id, body as Partial<ReviewJournal>);
+    if (!j) return res.status(404).json({ error: 'journal 不存在' });
+    res.json({ success: true, journal: j });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// PUT /api/review/journal/:id  完整替换
+router.put('/journal/:id', (req: Request, res: Response) => {
+  try {
+    const body = req.body as ReviewJournalCreateRequest;
+    if (!body.scope || !body.period_key || !body.title) {
+      return res.status(400).json({ error: '缺少必填字段：scope, period_key, title' });
+    }
+    const cur = getJournalById(req.params.id);
+    if (!cur) return res.status(404).json({ error: 'journal 不存在' });
+    const replaced: ReviewJournal = {
+      ...makeJournal(body),
+      id: cur.id,
+      created_at: cur.created_at,
+      updated_at: new Date().toISOString(),
+    };
+    const j = updateJournal(cur.id, replaced);
+    res.json({ success: true, journal: j });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// DELETE /api/review/journal/:id
+router.delete('/journal/:id', (req: Request, res: Response) => {
+  const ok = deleteJournal(req.params.id);
+  if (!ok) return res.status(404).json({ error: 'journal 不存在' });
+  res.json({ success: true });
+});
 
 // GET /api/review/period/timeline?type=week|month&start=YYYY-MM-DD&end=YYYY-MM-DD
 //   列出区间内所有周/月节点（已聚合或未聚合都返回，未聚合则即时聚合）

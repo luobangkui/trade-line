@@ -330,3 +330,81 @@ export interface PeriodReviewPlanRequest {
   narrative?: string;
   monthly_thesis?: string;
 }
+
+/* ─────────────────────────────────────────────
+ * 复盘日志 (Review Journal) — 完全独立、不依赖 daily 数据
+ * 适合作为 agent 总结报告 / 周记 / 月记
+ * ───────────────────────────────────────────── */
+
+export type JournalScope = 'week' | 'month' | 'custom';
+
+/** 自由结构的小节，agent 可任意扩展 */
+export interface JournalSection {
+  title: string;
+  content: string;            // 支持纯文本或 markdown
+  kind?: string;              // 自定义类型，例如 'analysis' / 'reflection' / 'quote'
+}
+
+export interface ReviewJournal {
+  id: string;
+
+  /* ── 范围与归属 ── */
+  scope: JournalScope;
+  /** 周: 'YYYY-Www'；月: 'YYYY-MM'；自定义: 任意标识或 'YYYY-MM-DD..YYYY-MM-DD' */
+  period_key: string;
+  /** 可选的精确起止日期，用于 custom 或显式标注 */
+  start_date?: string;
+  end_date?: string;
+
+  /* ── 内容主体 ── */
+  title: string;
+  summary?: string;           // 一段话摘要
+  body?: string;              // 长正文，支持 markdown
+  /** 自由结构小节，可任意扩展 */
+  sections: JournalSection[];
+
+  /* ── 结构化字段（与 PeriodReview 平行，但完全独立存储） ── */
+  market_observation?: string;
+  strategy_review?: string;
+  key_takeaways: string[];
+  mistakes: string[];
+  improvements: string[];
+  playbook_updates: string[];
+  next_actions: string[];
+
+  /* ── 标识与元数据 ── */
+  tags: string[];
+  source: string;             // 'self' | 'agent:xxx' | 'manual'
+  status: 'draft' | 'final';  // 草稿 / 定稿
+  /** agent 可塞任意键值对（例如关联的研报、模型版本、推理过程引用等） */
+  metadata?: Record<string, unknown>;
+
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+}
+
+export interface ReviewJournalCreateRequest {
+  scope: JournalScope;
+  period_key: string;
+  title: string;
+  start_date?: string;
+  end_date?: string;
+  summary?: string;
+  body?: string;
+  sections?: JournalSection[];
+  market_observation?: string;
+  strategy_review?: string;
+  key_takeaways?: string[];
+  mistakes?: string[];
+  improvements?: string[];
+  playbook_updates?: string[];
+  next_actions?: string[];
+  tags?: string[];
+  source?: string;
+  status?: 'draft' | 'final';
+  metadata?: Record<string, unknown>;
+  created_by?: string;
+}
+
+export type ReviewJournalPatchRequest = Partial<ReviewJournalCreateRequest>;

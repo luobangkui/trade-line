@@ -3,7 +3,7 @@ import path from 'path';
 import type {
   BaselineInput, BaselineSnapshot, BaselineRelation, FutureWatchItem,
   TradeOperation, OperationEvaluation, DailyReviewSummary,
-  PeriodReview, PeriodType,
+  PeriodReview, PeriodType, ReviewJournal,
 } from '../models/types';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
@@ -19,12 +19,13 @@ interface DB {
   daily_reviews: DailyReviewSummary[];
   weekly_reviews: PeriodReview[];
   monthly_reviews: PeriodReview[];
+  review_journals: ReviewJournal[];
 }
 
 const EMPTY_DB: DB = {
   inputs: [], snapshots: [], relations: [], future_watchlist: [],
   trade_operations: [], operation_evaluations: [], daily_reviews: [],
-  weekly_reviews: [], monthly_reviews: [],
+  weekly_reviews: [], monthly_reviews: [], review_journals: [],
 };
 
 function load(): DB {
@@ -277,4 +278,75 @@ export function getRecentPeriodReviewsBefore(
 ): PeriodReview[] {
   const all = getAllPeriodReviews(type).filter((r) => r.period_key < periodKey);
   return all.slice(-n);
+}
+
+// ── Review Journals (完全独立的复盘日志) ──────────────
+export function insertJournal(j: ReviewJournal): ReviewJournal {
+  const db = load();
+  db.review_journals.push(j);
+  save(db);
+  return j;
+}
+
+export function getJournalById(id: string): ReviewJournal | undefined {
+  return load().review_journals.find((j) => j.id === id);
+}
+
+export function getJournalsByPeriod(scope: ReviewJournal['scope'], periodKey: string): ReviewJournal[] {
+  return load().review_journals
+    .filter((j) => j.scope === scope && j.period_key === periodKey)
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+}
+
+export function listJournals(filter: {
+  scope?: ReviewJournal['scope'];
+  tag?: string;
+  status?: ReviewJournal['status'];
+  source?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+} = {}): { items: ReviewJournal[]; total: number } {
+  let arr = load().review_journals;
+  if (filter.scope)  arr = arr.filter((j) => j.scope === filter.scope);
+  if (filter.status) arr = arr.filter((j) => j.status === filter.status);
+  if (filter.source) arr = arr.filter((j) => j.source === filter.source);
+  if (filter.tag)    arr = arr.filter((j) => j.tags.includes(filter.tag!));
+  if (filter.search) {
+    const q = filter.search.toLowerCase();
+    arr = arr.filter((j) =>
+      j.title.toLowerCase().includes(q)
+      || (j.summary ?? '').toLowerCase().includes(q)
+      || (j.body ?? '').toLowerCase().includes(q),
+    );
+  }
+  const sorted = arr.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  const total = sorted.length;
+  const limit = filter.limit ?? 50;
+  const offset = filter.offset ?? 0;
+  return { items: sorted.slice(offset, offset + limit), total };
+}
+
+export function updateJournal(id: string, patch: Partial<ReviewJournal>): ReviewJournal | undefined {
+  const db = load();
+  const idx = db.review_journals.findIndex((j) => j.id === id);
+  if (idx < 0) return undefined;
+  const merged: ReviewJournal = {
+    ...db.review_journals[idx],
+    ...patch,
+    id: db.review_journals[idx].id,
+    created_at: db.review_journals[idx].created_at,
+    updated_at: new Date().toISOString(),
+  };
+  db.review_journals[idx] = merged;
+  save(db);
+  return merged;
+}
+
+export function deleteJournal(id: string): boolean {
+  const db = load();
+  const before = db.review_journals.length;
+  db.review_journals = db.review_journals.filter((j) => j.id !== id);
+  save(db);
+  return db.review_journals.length < before;
 }

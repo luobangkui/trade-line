@@ -600,6 +600,112 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
 .field-block textarea:focus, .field-block input[type="text"]:focus {
   outline: 0; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(59,130,246,.15);
 }
+
+/* ── 复盘日志区块 (Review Journal) ── */
+.journal-section { margin-top: 8px; }
+.journal-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+.journal-header .jh-title {
+  font-size: 11px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .8px; flex: 1;
+}
+.journal-header .jh-add-btn {
+  background: var(--accent); border: 0; color: #fff;
+  border-radius: 5px; padding: 3px 9px; font-size: 11px; cursor: pointer;
+}
+.journal-header .jh-add-btn:hover { opacity: .85; }
+.journal-list { display: flex; flex-direction: column; gap: 8px; }
+.journal-item {
+  background: var(--bg3); border-radius: 7px; padding: 10px 12px;
+  border-left: 3px solid var(--accent);
+}
+.journal-item.is-final { border-left-color: #22c55e; }
+.journal-item.is-draft { border-left-color: #eab308; }
+.ji-head {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 5px; flex-wrap: wrap;
+}
+.ji-status {
+  font-size: 9px; padding: 1px 6px; border-radius: 8px; font-weight: 600;
+}
+.ji-status.is-draft { background: #422006; color: #eab308; }
+.ji-status.is-final { background: #052e16; color: #22c55e; }
+.ji-source { font-size: 10px; color: var(--muted); }
+.ji-time { font-size: 10px; color: #64748b; margin-left: auto; }
+.ji-title { font-size: 13px; color: var(--text); font-weight: 600; line-height: 1.4; cursor: pointer; }
+.ji-title:hover { color: var(--accent); }
+.ji-summary {
+  font-size: 11px; color: #cbd5e1; line-height: 1.55; margin-top: 5px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.ji-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 5px; }
+.ji-tag {
+  font-size: 10px; padding: 1px 7px; border-radius: 8px;
+  background: var(--bg2); color: var(--muted); border: 1px solid var(--border);
+}
+.ji-actions {
+  display: flex; gap: 6px; margin-top: 7px; padding-top: 7px;
+  border-top: 1px dashed var(--border);
+}
+.ji-action-btn {
+  background: transparent; border: 1px solid var(--border); color: var(--muted);
+  border-radius: 4px; padding: 3px 9px; font-size: 11px; cursor: pointer;
+  transition: all .12s;
+}
+.ji-action-btn:hover { border-color: var(--accent); color: var(--accent); }
+.ji-action-btn.danger:hover { border-color: #ef4444; color: #ef4444; }
+
+/* journal 详情/编辑 模态 */
+.modal-box.wide { max-width: 760px; }
+.journal-view-section { margin-bottom: 12px; }
+.jvs-title {
+  font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px;
+  margin-bottom: 5px; font-weight: 600;
+}
+.jvs-content {
+  font-size: 13px; color: var(--text); line-height: 1.65;
+  background: var(--bg3); border-radius: 6px; padding: 10px 12px;
+  white-space: pre-wrap; word-break: break-word;
+}
+.jvs-list { padding-left: 18px; margin: 0; color: #cbd5e1; font-size: 12px; line-height: 1.65; }
+.jvs-section-card {
+  background: var(--bg3); border-radius: 6px; padding: 10px 12px; margin-bottom: 6px;
+  border-left: 3px solid var(--accent);
+}
+.jvs-section-card .ssc-title {
+  font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 4px;
+}
+.jvs-section-card .ssc-kind {
+  font-size: 9px; padding: 1px 6px; border-radius: 6px;
+  background: var(--bg2); color: var(--muted); margin-left: 6px;
+}
+.jvs-section-card .ssc-content {
+  font-size: 12px; color: #cbd5e1; line-height: 1.6; white-space: pre-wrap;
+}
+
+.section-editor { display: flex; flex-direction: column; gap: 8px; }
+.section-editor .se-row {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 7px;
+  padding: 10px; display: flex; flex-direction: column; gap: 6px;
+}
+.section-editor .se-row-head {
+  display: flex; gap: 6px; align-items: center;
+}
+.section-editor .se-row-head input { flex: 1; }
+.section-editor .se-row input.kind {
+  flex: 0 0 110px; font-size: 12px;
+}
+.section-editor .se-rm-btn {
+  background: transparent; border: 1px solid var(--border); color: #ef4444;
+  border-radius: 4px; padding: 3px 9px; font-size: 11px; cursor: pointer;
+}
+.section-editor .se-rm-btn:hover { border-color: #ef4444; }
+.section-editor .se-add-btn {
+  background: transparent; border: 1px dashed var(--border); color: var(--muted);
+  border-radius: 6px; padding: 7px; font-size: 12px; cursor: pointer;
+  transition: all .15s;
+}
+.section-editor .se-add-btn:hover { border-color: var(--accent); color: var(--accent); }
 </style>
 </head>
 <body>
@@ -1521,18 +1627,21 @@ async function selectPeriod(periodKey) {
   document.getElementById('detail-body').innerHTML = '<div class="empty-hint">加载中...</div>';
 
   const path = viewMode === 'week' ? 'weekly' : 'monthly';
-  const [reviewRes, insightRes, childRes] = await Promise.all([
+  const [reviewRes, insightRes, childRes, journalRes] = await Promise.all([
     fetch(`/api/review/${path}?period=${encodeURIComponent(periodKey)}`),
     fetch(`/api/review/${path}/${encodeURIComponent(periodKey)}/insights`),
     fetch(`/api/review/${path}/${encodeURIComponent(periodKey)}/children`),
+    fetch(`/api/review/journals?scope=${viewMode}&period_key=${encodeURIComponent(periodKey)}`),
   ]);
   const review = reviewRes.ok ? await reviewRes.json() : null;
   const insight = insightRes.ok ? await insightRes.json() : null;
   const children = childRes.ok ? await childRes.json() : [];
-  renderPeriodDetail(review, insight, children);
+  const journals = journalRes.ok ? (await journalRes.json()).items || [] : [];
+  renderPeriodDetail(review, insight, children, journals);
 }
 
-function renderPeriodDetail(review, insight, children) {
+function renderPeriodDetail(review, insight, children, journals) {
+  journals = journals || [];
   const body = document.getElementById('detail-body');
   if (!review) {
     body.innerHTML = '<div class="empty-hint">暂无数据</div>';
@@ -1707,17 +1816,62 @@ function renderPeriodDetail(review, insight, children) {
     </div>
   ` : '';
 
+  // 复盘日志区块
+  const journalHtml = `
+    <div class="detail-section journal-section">
+      <div class="journal-header">
+        <div class="jh-title">📒 ${VIEW_LABEL[review.period_type]}度复盘日志 ${journals.length ? `(${journals.length})` : ''}</div>
+        <button class="jh-add-btn" onclick="openJournalEditModal()">+ 新建日志</button>
+      </div>
+      ${journals.length ? `
+        <div class="journal-list">
+          ${journals.map(j => {
+            const t = (j.updated_at || '').slice(5, 16).replace('T', ' ');
+            const summary = j.summary || (j.body ? j.body.slice(0, 80) + '…' : '');
+            return `
+              <div class="journal-item is-${j.status}">
+                <div class="ji-head">
+                  <span class="ji-status is-${j.status}">${j.status === 'final' ? '定稿' : '草稿'}</span>
+                  <span class="ji-source">${j.source || 'manual'}</span>
+                  <span class="ji-time">${t}</span>
+                </div>
+                <div class="ji-title" onclick="openJournalView('${j.id}')">${j.title}</div>
+                ${summary ? `<div class="ji-summary">${escapeHtml(summary)}</div>` : ''}
+                ${j.tags && j.tags.length ? `<div class="ji-tags">${j.tags.map(t => `<span class="ji-tag">${t}</span>`).join('')}</div>` : ''}
+                <div class="ji-actions">
+                  <button class="ji-action-btn" onclick="openJournalView('${j.id}')">查看</button>
+                  <button class="ji-action-btn" onclick="openJournalEditModal('${j.id}')">编辑</button>
+                  <button class="ji-action-btn danger" onclick="deleteJournalConfirm('${j.id}')">删除</button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      ` : `
+        <div class="empty-hint" style="padding:14px 0">
+          暂无独立日志。点击右上「+ 新建日志」自由记录，或由 agent 通过 API 写入
+        </div>
+      `}
+    </div>
+  `;
+
   const btnHtml = `
     <div class="detail-section" style="display:flex;gap:8px">
       <button class="detail-btn" onclick="reaggregatePeriod('${review.period_key}')">↻ 重新聚合</button>
-      <button class="detail-btn" style="background:var(--accent);border-color:var(--accent);color:#fff" onclick="openPeriodEditModal()">✎ 上传/编辑</button>
+      <button class="detail-btn" style="background:var(--accent);border-color:var(--accent);color:#fff" onclick="openPeriodEditModal()">✎ 编辑聚合复盘</button>
     </div>
   `;
 
   // 缓存当前 review 给模态使用
   editingPeriod = review;
 
-  body.innerHTML = summaryHtml + insightHtml + textBlocksHtml + childHtml + btnHtml;
+  body.innerHTML = summaryHtml + insightHtml + textBlocksHtml + journalHtml + childHtml + btnHtml;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[c]);
 }
 
 async function reaggregatePeriod(periodKey) {
@@ -1795,6 +1949,199 @@ async function savePeriodEdit() {
   }
 }
 
+/* ─────────────────────────────────────────────
+ * 复盘日志：新建 / 查看 / 编辑 / 删除
+ * ───────────────────────────────────────────── */
+
+let editingJournalId = null;
+
+function addJournalSectionRow(title = '', kind = '', content = '') {
+  const container = document.getElementById('je-sections');
+  const addBtn = container.querySelector('.se-add-btn');
+  const row = document.createElement('div');
+  row.className = 'se-row';
+  row.innerHTML = `
+    <div class="se-row-head">
+      <input type="text" class="title" placeholder="小节标题" value="${escapeHtml(title)}" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:6px 8px;font-size:13px">
+      <input type="text" class="kind" placeholder="类型 (可选)" value="${escapeHtml(kind)}" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:6px 8px;font-size:12px">
+      <button type="button" class="se-rm-btn" onclick="this.closest('.se-row').remove()">✕</button>
+    </div>
+    <textarea class="content" placeholder="小节内容" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:7px 9px;font-size:12px;min-height:60px;resize:vertical;font-family:inherit;line-height:1.5">${escapeHtml(content)}</textarea>
+  `;
+  container.insertBefore(row, addBtn);
+}
+
+function openJournalEditModal(journalId = null) {
+  editingJournalId = journalId;
+  const modal = document.getElementById('journal-edit-modal');
+  const title = document.getElementById('je-modal-title');
+  // 重置 sections 容器
+  const sec = document.getElementById('je-sections');
+  sec.querySelectorAll('.se-row').forEach(r => r.remove());
+
+  if (journalId) {
+    title.textContent = '编辑复盘日志';
+    fetch(`/api/review/journal/${journalId}`).then(r => r.json()).then(j => {
+      document.getElementById('je-title').value        = j.title || '';
+      document.getElementById('je-status').value       = j.status || 'draft';
+      document.getElementById('je-source').value       = j.source || 'manual';
+      document.getElementById('je-summary').value      = j.summary || '';
+      document.getElementById('je-body').value         = j.body || '';
+      document.getElementById('je-market').value       = j.market_observation || '';
+      document.getElementById('je-strategy').value     = j.strategy_review || '';
+      document.getElementById('je-takeaways').value    = (j.key_takeaways || []).join('\n');
+      document.getElementById('je-mistakes').value     = (j.mistakes || []).join('\n');
+      document.getElementById('je-improvements').value = (j.improvements || []).join('\n');
+      document.getElementById('je-playbook').value     = (j.playbook_updates || []).join('\n');
+      document.getElementById('je-actions').value      = (j.next_actions || []).join('\n');
+      document.getElementById('je-tags').value         = (j.tags || []).join(', ');
+      (j.sections || []).forEach(s => addJournalSectionRow(s.title, s.kind || '', s.content));
+    });
+  } else {
+    title.textContent = `新建 ${editingPeriod ? periodFullLabel(editingPeriod) : ''} 复盘日志`;
+    document.getElementById('je-title').value = '';
+    document.getElementById('je-status').value = 'draft';
+    document.getElementById('je-source').value = 'manual';
+    ['je-summary','je-body','je-market','je-strategy','je-takeaways','je-mistakes','je-improvements','je-playbook','je-actions','je-tags']
+      .forEach(id => document.getElementById(id).value = '');
+  }
+
+  modal.classList.add('show');
+}
+
+function closeJournalEditModal() {
+  document.getElementById('journal-edit-modal').classList.remove('show');
+  editingJournalId = null;
+}
+
+async function saveJournal() {
+  if (!editingPeriod) return;
+  const linesFrom = id => document.getElementById(id).value
+    .split('\n').map(s => s.trim()).filter(Boolean);
+  const tags = document.getElementById('je-tags').value
+    .split(/[,，]/).map(s => s.trim()).filter(Boolean);
+
+  const sections = [...document.querySelectorAll('#je-sections .se-row')].map(row => ({
+    title:   row.querySelector('input.title').value.trim(),
+    kind:    row.querySelector('input.kind').value.trim() || undefined,
+    content: row.querySelector('textarea.content').value,
+  })).filter(s => s.title || s.content);
+
+  const payload = {
+    scope:      viewMode,
+    period_key: editingPeriod.period_key,
+    title:      document.getElementById('je-title').value.trim() || '未命名日志',
+    status:     document.getElementById('je-status').value,
+    source:     document.getElementById('je-source').value.trim() || 'manual',
+    summary:    document.getElementById('je-summary').value.trim() || undefined,
+    body:       document.getElementById('je-body').value.trim() || undefined,
+    market_observation: document.getElementById('je-market').value.trim() || undefined,
+    strategy_review:    document.getElementById('je-strategy').value.trim() || undefined,
+    key_takeaways:    linesFrom('je-takeaways'),
+    mistakes:         linesFrom('je-mistakes'),
+    improvements:     linesFrom('je-improvements'),
+    playbook_updates: linesFrom('je-playbook'),
+    next_actions:     linesFrom('je-actions'),
+    sections,
+    tags,
+  };
+
+  const btn = document.getElementById('je-save-btn');
+  btn.disabled = true; btn.textContent = '保存中...';
+  try {
+    if (editingJournalId) {
+      await fetch(`/api/review/journal/${editingJournalId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    } else {
+      await fetch(`/api/review/journal`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    }
+    closeJournalEditModal();
+    await selectPeriod(editingPeriod.period_key);
+  } catch (e) {
+    alert('保存失败：' + e);
+  } finally {
+    btn.disabled = false; btn.textContent = '保存';
+  }
+}
+
+async function openJournalView(journalId) {
+  const r = await fetch(`/api/review/journal/${journalId}`);
+  if (!r.ok) return;
+  const j = await r.json();
+  document.getElementById('jv-modal-title').textContent = j.title;
+  document.getElementById('jv-edit-btn').onclick = () => {
+    closeJournalViewModal();
+    openJournalEditModal(j.id);
+  };
+
+  const arrSection = (label, arr) => arr && arr.length ? `
+    <div class="journal-view-section">
+      <div class="jvs-title">${label}</div>
+      <ul class="jvs-list">${arr.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ul>
+    </div>
+  ` : '';
+  const textSection = (label, txt) => txt ? `
+    <div class="journal-view-section">
+      <div class="jvs-title">${label}</div>
+      <div class="jvs-content">${escapeHtml(txt)}</div>
+    </div>
+  ` : '';
+
+  const sectionsHtml = (j.sections && j.sections.length) ? `
+    <div class="journal-view-section">
+      <div class="jvs-title">🧩 自由小节 (${j.sections.length})</div>
+      ${j.sections.map(s => `
+        <div class="jvs-section-card">
+          <div class="ssc-title">${escapeHtml(s.title || '未命名')}${s.kind ? `<span class="ssc-kind">${escapeHtml(s.kind)}</span>` : ''}</div>
+          <div class="ssc-content">${escapeHtml(s.content || '')}</div>
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
+
+  document.getElementById('jv-modal-body').innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+      <span class="ji-status is-${j.status}">${j.status === 'final' ? '定稿' : '草稿'}</span>
+      <span class="ji-source">来源 ${j.source || 'manual'}</span>
+      <span class="ji-time">${(j.created_at || '').slice(0, 19).replace('T', ' ')} 创建</span>
+      ${j.updated_at !== j.created_at ? `<span class="ji-time">${(j.updated_at || '').slice(0, 19).replace('T', ' ')} 更新</span>` : ''}
+    </div>
+    ${j.tags && j.tags.length ? `<div class="ji-tags" style="margin-bottom:10px">${j.tags.map(t => `<span class="ji-tag">${t}</span>`).join('')}</div>` : ''}
+    ${textSection('📝 摘要', j.summary)}
+    ${textSection('📰 正文', j.body)}
+    ${sectionsHtml}
+    ${textSection('📈 市场观察', j.market_observation)}
+    ${textSection('🎯 策略复盘', j.strategy_review)}
+    ${arrSection('✅ 关键收获', j.key_takeaways)}
+    ${arrSection('⚠️ 主要错误', j.mistakes)}
+    ${arrSection('🔧 改进点', j.improvements)}
+    ${arrSection('📖 操作手册更新', j.playbook_updates)}
+    ${arrSection('🎯 下期行动', j.next_actions)}
+    ${j.metadata && Object.keys(j.metadata).length ? `
+      <div class="journal-view-section">
+        <div class="jvs-title">🏷️ 元数据</div>
+        <div class="jvs-content" style="font-family:monospace;font-size:11px">${escapeHtml(JSON.stringify(j.metadata, null, 2))}</div>
+      </div>
+    ` : ''}
+  `;
+  document.getElementById('journal-view-modal').classList.add('show');
+}
+
+function closeJournalViewModal() {
+  document.getElementById('journal-view-modal').classList.remove('show');
+}
+
+async function deleteJournalConfirm(journalId) {
+  if (!confirm('确定删除这篇日志？此操作不可恢复')) return;
+  await fetch(`/api/review/journal/${journalId}`, { method: 'DELETE' });
+  if (editingPeriod) await selectPeriod(editingPeriod.period_key);
+}
+
 async function applyInsightToActions() {
   if (!editingPeriod) return;
   const path = editingPeriod.period_type === 'week' ? 'weekly' : 'monthly';
@@ -1831,6 +2178,106 @@ loadTimeline();
   <div class="gantt-tooltip-row" id="gtt-range"></div>
   <div class="gantt-tooltip-row" id="gtt-phase"></div>
   <div class="gantt-tooltip-row" id="gtt-note"></div>
+</div>
+
+<!-- 复盘日志 编辑模态 -->
+<div class="modal-mask" id="journal-edit-modal">
+  <div class="modal-box wide">
+    <div class="modal-header">
+      <span class="modal-title" id="je-modal-title">新建复盘日志</span>
+      <button class="modal-close" onclick="closeJournalEditModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-block">
+        <label>📌 标题 <span style="color:#ef4444">*</span></label>
+        <input type="text" id="je-title" placeholder="例：本周市场观察 - 主线分化加剧">
+      </div>
+      <div style="display:flex;gap:10px">
+        <div class="field-block" style="flex:1">
+          <label>状态</label>
+          <select id="je-status" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 10px;font-size:13px">
+            <option value="draft">草稿</option>
+            <option value="final">定稿</option>
+          </select>
+        </div>
+        <div class="field-block" style="flex:1">
+          <label>来源 <span class="helper">source</span></label>
+          <input type="text" id="je-source" placeholder="self / agent:xxx / manual" value="manual">
+        </div>
+      </div>
+      <div class="field-block">
+        <label>📝 摘要 <span class="helper">summary</span></label>
+        <textarea id="je-summary" placeholder="一两句话概括这篇日志的核心内容"></textarea>
+      </div>
+      <div class="field-block">
+        <label>📰 正文 <span class="helper">body，支持 markdown</span></label>
+        <textarea id="je-body" style="min-height:140px" placeholder="可以写较长的复盘正文"></textarea>
+      </div>
+      <div class="field-block">
+        <label>🧩 自由小节（点击 + 添加） <span class="helper">sections</span></label>
+        <div class="section-editor" id="je-sections">
+          <button type="button" class="se-add-btn" onclick="addJournalSectionRow()">+ 新增小节</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <div class="field-block" style="flex:1">
+          <label>📈 市场观察</label>
+          <textarea id="je-market" placeholder="例：央行流动性净投放 3000 亿"></textarea>
+        </div>
+        <div class="field-block" style="flex:1">
+          <label>🎯 策略复盘</label>
+          <textarea id="je-strategy" placeholder="例：保持空仓策略奏效"></textarea>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <div class="field-block" style="flex:1">
+          <label>✅ 关键收获 <span class="helper">每行一条</span></label>
+          <textarea id="je-takeaways"></textarea>
+        </div>
+        <div class="field-block" style="flex:1">
+          <label>⚠️ 主要错误</label>
+          <textarea id="je-mistakes"></textarea>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <div class="field-block" style="flex:1">
+          <label>🔧 改进点</label>
+          <textarea id="je-improvements"></textarea>
+        </div>
+        <div class="field-block" style="flex:1">
+          <label>📖 操作手册更新</label>
+          <textarea id="je-playbook"></textarea>
+        </div>
+      </div>
+      <div class="field-block">
+        <label>🎯 下期行动</label>
+        <textarea id="je-actions"></textarea>
+      </div>
+      <div class="field-block">
+        <label>🏷️ 标签 <span class="helper">用逗号分隔</span></label>
+        <input type="text" id="je-tags" placeholder="周记, 市场观察, agent生成">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-btn" onclick="closeJournalEditModal()">取消</button>
+      <button class="modal-btn primary" id="je-save-btn" onclick="saveJournal()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 复盘日志 查看模态 -->
+<div class="modal-mask" id="journal-view-modal">
+  <div class="modal-box wide">
+    <div class="modal-header">
+      <span class="modal-title" id="jv-modal-title">日志详情</span>
+      <button class="modal-close" onclick="closeJournalViewModal()">✕</button>
+    </div>
+    <div class="modal-body" id="jv-modal-body"></div>
+    <div class="modal-footer">
+      <button class="modal-btn" onclick="closeJournalViewModal()">关闭</button>
+      <button class="modal-btn" id="jv-edit-btn">✎ 编辑</button>
+    </div>
+  </div>
 </div>
 
 <!-- 周/月复盘 编辑模态 -->
