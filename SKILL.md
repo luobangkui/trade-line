@@ -4,7 +4,8 @@ description: >-
   Trade Baseline v2 复盘工作助手技能（精简入口版）。Agent 可通过本 skill 完成完整复盘闭环：
   (1) 同步市场客观基线；(2) 记录交易操作并自动评估；
   (3) 自动聚合日/周/月复盘 + 历史模式洞察；(4) 写入独立复盘日志报告；
-  (5) 在编辑覆盖 / 重新聚合 / 清空重推 / 单条删除多接口间正确选择。
+  (5) 在编辑覆盖 / 重新聚合 / 清空重推 / 单条删除多接口间正确选择；
+  (6) 写入「明日权限卡」把复盘转成事前刹车（状态/最大仓位/禁止动作）。
   详细 SOP 与接口手册按需读取 skill/ 子目录对应文件。
   BASE_URL 默认生产地址 http://vzil1451410.bohrium.tech:50001。
 ---
@@ -48,6 +49,12 @@ description: >-
         │  journal (独立日志) ← 纯自由写，可多篇           │
         │  insights (历史洞察) ← 基于历史 N 期对比生成     │
         └────────────────────────────────────────────────┘
+                              ↕ 推理写入
+        ┌─ 控制面 ──────────────────────────────────────┐
+        │  permission (明日权限卡)                        │
+        │    每日一张：状态/最大仓位/允许模式/禁止动作    │
+        │    Agent 综合上述三层数据推理生成（事前刹车）   │
+        └────────────────────────────────────────────────┘
 ```
 
 ---
@@ -85,11 +92,21 @@ description: >-
 │   └─ 删错一篇                → DELETE /api/review/journal/:id
 │      详情：skill/api-journal.md
 │
+├─ 写入"明日权限卡"（事前刹车 — 状态/仓位/禁止动作）
+│   ├─ 写入/覆盖一张卡        → POST   /api/permission
+│   ├─ 查今日卡                → GET    /api/permission/today
+│   ├─ 查某日卡                → GET    /api/permission/:date
+│   ├─ 锁定/解锁              → POST   /api/permission/:date/lock {locked:true|false}
+│   ├─ 强制覆盖锁定卡          → POST   /api/permission?force=1
+│   └─ 删除                    → DELETE /api/permission/:date
+│      详情：skill/api-permission.md / skill/sop-permission.md
+│
 └─ 查询/读取
     ├─ 某日全景                → GET /api/baseline/snapshot?date= + GET /api/review/daily?date=
     ├─ 时间区间                → GET /api/baseline/timeline?start=&end=
     ├─ 周/月时间轴             → GET /api/review/period/timeline?type=week&start=&end=
-    └─ 全部日志（带过滤）       → GET /api/review/journals?scope=&tag=&search=
+    ├─ 全部日志（带过滤）       → GET /api/review/journals?scope=&tag=&search=
+    └─ 权限卡区间               → GET /api/permission?start=&end=
 ```
 
 > **关键原则**：
@@ -107,6 +124,7 @@ description: >-
 | 做**日复盘**（盘后给操作打分 + 写计划） | [`skill/sop-daily.md`](./skill/sop-daily.md) → 必要时 [`skill/api-review.md`](./skill/api-review.md) |
 | 做**周复盘**（周聚合 + 周记 + 历史对比） | [`skill/sop-weekly.md`](./skill/sop-weekly.md) → 必要时 [`skill/api-period.md`](./skill/api-period.md) · [`skill/api-journal.md`](./skill/api-journal.md) |
 | 做**月复盘**（月度主题 + 月报 + playbook） | [`skill/sop-monthly.md`](./skill/sop-monthly.md) → 必要时 [`skill/api-period.md`](./skill/api-period.md) · [`skill/api-journal.md`](./skill/api-journal.md) |
+| **生成「明日权限卡」**（事前刹车 — 推荐每日跑一次） | [`skill/sop-permission.md`](./skill/sop-permission.md) → 必要时 [`skill/api-permission.md`](./skill/api-permission.md) |
 | **纠错 / 重置**（agent 写错想推倒重来） | [`skill/sop-fixup.md`](./skill/sop-fixup.md) |
 | 同步**客观市场数据**（情绪/事件/快照/未来事件） | [`skill/api-baseline.md`](./skill/api-baseline.md) |
 | 写**操作 + 评估**（trade operation / evaluation） | [`skill/api-review.md`](./skill/api-review.md) |

@@ -408,3 +408,61 @@ export interface ReviewJournalCreateRequest {
 }
 
 export type ReviewJournalPatchRequest = Partial<ReviewJournalCreateRequest>;
+
+/* ─────────────────────────────────────────────
+ * 明日权限卡 (Trading Permission Card)
+ * 由 agent 综合 baseline + 近 N 日复盘 + 操作行为 推理生成
+ * 后端只做存储 + CRUD，不做规则引擎
+ * ───────────────────────────────────────────── */
+
+export type PermissionStatus = 'protect' | 'normal' | 'attack';
+
+/** 卡片决策依据：agent 自填，便于后续追溯/对比 */
+export interface PermissionGeneratedFrom {
+  baseline_stage?: string;
+  avg_score_3d?: number;
+  recent_mistakes?: string[];
+  /** 用于推理的日期列表（如 last 3 trading days） */
+  based_on_dates?: string[];
+  /** 触发的规则名（agent 在 prompt 里维护的规则） */
+  triggered_rules?: string[];
+  /** agent 推理过程，可放短摘要或完整链路 */
+  reasoning?: string;
+  /** 自由扩展 */
+  extras?: Record<string, unknown>;
+}
+
+export interface TradingPermissionCard {
+  /** 主键：日期 YYYY-MM-DD（每日一张） */
+  date: string;
+  status: PermissionStatus;
+  max_total_position: number;        // 0-1
+  allow_margin: boolean;
+  allowed_modes: string[];           // ["A类启动确认", "处理失败仓"]
+  forbidden_actions: string[];       // ["补仓","倒T","追涨","新开后排"]
+  stop_triggers: string[];           // ["卖出后想马上买入","当日做了3种模式"]
+  /** 一句话总结今天为何是这个状态 */
+  rationale: string;
+  /** 决策来源数据 */
+  generated_from: PermissionGeneratedFrom;
+  /** 'agent:permission' / 'manual' / 'self' */
+  source: string;
+  /** 锁定后 POST 不会覆盖（除非显式 unlock） */
+  locked: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TradingPermissionCardUpsertRequest {
+  date: string;
+  status: PermissionStatus;
+  max_total_position: number;
+  allow_margin?: boolean;
+  allowed_modes?: string[];
+  forbidden_actions?: string[];
+  stop_triggers?: string[];
+  rationale?: string;
+  generated_from?: PermissionGeneratedFrom;
+  source?: string;
+  locked?: boolean;
+}

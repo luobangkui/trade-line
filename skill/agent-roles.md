@@ -14,6 +14,7 @@
 | `daily_reviewer` | `agent:daily` | 给操作打分 + 写 daily plan | 收盘后 | [sop-daily.md](./sop-daily.md) |
 | `weekly_reviewer` | `agent:weekly` | 周聚合 + 周记 | 周日晚 | [sop-weekly.md](./sop-weekly.md) |
 | `monthly_reviewer` | `agent:monthly` | 月聚合 + 月报 | 月初 1-3 日 | [sop-monthly.md](./sop-monthly.md) |
+| **`permission_agent`** | **`agent:permission`** | **生成「明日权限卡」（事前刹车）** | **每日 daily 复盘后** | **[sop-permission.md](./sop-permission.md)** |
 | `orchestrator` | `agent:orchestrator` | 检查数据完整度 / override 修正 | 每日固定时间 | [sop-fixup.md](./sop-fixup.md) |
 
 ## 协作示例（一日流程）
@@ -31,10 +32,19 @@
                         → 对每笔 op  POST /review/operation/:id/eval
                         → POST /review/daily/$date/plan
 
+收盘后 (16:00)
+  └─ permission_agent → 拉取 baseline + 近 3 日 daily + 近 5 日 ops
+                       → 推理三档 + 行为模式 + 禁止动作
+                       → POST /api/permission  生成"明日权限卡"
+
 晚间 (21:00)
   └─ orchestrator     → GET /baseline/snapshot  检查完整性
                        → 必要时 POST /baseline/override
+                       → GET /api/permission/today  确认明日卡已生成
 ```
+
+> **第二天开盘前**：用户在前端顶栏一眼看到「🛑 明日权限 保护 仓50% 禁:补仓/倒T」，
+> 30 秒决定今天能不能下手 — 这是把复盘转成盈利的关键路径。
 
 ## 周末/月初
 

@@ -57,6 +57,64 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
 .status-dot { width: 8px; height: 8px; border-radius: 50%; animation: pulse 2s infinite; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
+/* ── 明日权限卡徽章 ── */
+.permission-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+  padding: 5px 12px; font-size: 12px; color: var(--text);
+  cursor: pointer; transition: all .15s; user-select: none;
+}
+.permission-chip:hover { border-color: var(--accent); }
+.permission-chip .pc-status {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-weight: 700; padding: 1px 8px; border-radius: 4px; font-size: 11px;
+}
+.permission-chip .pc-status.protect { background: rgba(239,68,68,.15); color: #f87171; border: 1px solid rgba(239,68,68,.3); }
+.permission-chip .pc-status.normal  { background: rgba(234,179,8,.15);  color: #facc15; border: 1px solid rgba(234,179,8,.3); }
+.permission-chip .pc-status.attack  { background: rgba(34,197,94,.15);  color: #4ade80; border: 1px solid rgba(34,197,94,.3); }
+.permission-chip .pc-empty  { color: var(--muted); }
+.permission-chip .pc-meta   { color: var(--muted); font-size: 11px; }
+.permission-chip .pc-locked { font-size: 11px; }
+
+/* 权限卡 modal 内部样式 */
+.pc-card-status {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-weight: 700; font-size: 18px; padding: 8px 16px; border-radius: 8px;
+  margin-bottom: 16px;
+}
+.pc-card-status.protect { background: rgba(239,68,68,.15); color: #f87171; border: 1px solid rgba(239,68,68,.3); }
+.pc-card-status.normal  { background: rgba(234,179,8,.15);  color: #facc15; border: 1px solid rgba(234,179,8,.3); }
+.pc-card-status.attack  { background: rgba(34,197,94,.15);  color: #4ade80; border: 1px solid rgba(34,197,94,.3); }
+.pc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.pc-grid .pc-cell { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; }
+.pc-grid .pc-cell .pc-k { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.pc-grid .pc-cell .pc-v { font-size: 14px; color: var(--text); font-weight: 600; }
+.pc-list { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; }
+.pc-list .pc-list-title { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.pc-list .pc-tag {
+  display: inline-block; background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 4px; padding: 2px 8px; margin: 2px 4px 2px 0;
+  font-size: 12px; color: var(--text);
+}
+.pc-list .pc-tag.danger { color: #f87171; border-color: rgba(239,68,68,.4); }
+.pc-list .pc-tag.warn   { color: #facc15; border-color: rgba(234,179,8,.4); }
+.pc-rationale {
+  background: rgba(59,130,246,.1); border: 1px solid rgba(59,130,246,.3);
+  border-radius: 6px; padding: 10px 14px; margin-bottom: 12px;
+  font-size: 13px; line-height: 1.6; color: #93c5fd;
+}
+.pc-meta-block {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+  padding: 10px 12px; font-size: 12px; color: var(--muted);
+}
+.pc-meta-block details { margin-top: 6px; }
+.pc-meta-block summary { cursor: pointer; color: var(--text); font-size: 12px; padding: 2px 0; }
+.pc-meta-block pre {
+  background: #0f172a; border: 1px solid var(--border); border-radius: 4px;
+  padding: 8px; margin-top: 6px; font-size: 11px; color: #cbd5e1;
+  overflow-x: auto; max-height: 200px; white-space: pre-wrap;
+}
+
 /* ── Layout ── */
 #main { display: flex; flex: 1; overflow: hidden; }
 
@@ -727,6 +785,10 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
     <button              data-view="month" onclick="switchView('month')">📈 月复盘</button>
   </div>
   <div class="today-badge" id="today-label">—</div>
+  <div class="permission-chip" id="permission-chip" onclick="openPermissionModal()" title="点击查看明日权限卡详情">
+    <span>🛑 明日权限</span>
+    <span class="pc-empty" id="pc-chip-status">—</span>
+  </div>
   <div id="status-chip">
     <div class="status-dot" id="status-dot" style="background:#94a3b8"></div>
     <span id="status-text">—</span>
@@ -2182,7 +2244,143 @@ async function applyInsightToActions() {
   await selectPeriod(editingPeriod.period_key);
 }
 
-loadTimeline();
+/* ────────────── 明日权限卡 ────────────── */
+let currentPermissionDate = null;
+let currentPermissionCard = null;
+
+function permissionStatusLabel(s) {
+  return { protect: '🛑 保护', normal: '⚖️ 正常', attack: '🚀 进攻' }[s] || s;
+}
+
+function nextTradingDateYmd() {
+  // 简化：以 timelineData.today 为基准 + 1 天；周末跳到周一
+  const base = (timelineData && timelineData.today) || new Date().toISOString().slice(0, 10);
+  const d = new Date(base + 'T00:00:00');
+  d.setDate(d.getDate() + 1);
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+async function loadPermissionChip() {
+  const wrap = document.getElementById('permission-chip');
+  if (!wrap) return;
+  const target = nextTradingDateYmd();
+  let card = null;
+  try {
+    const r = await fetch('/api/permission/' + target);
+    if (r.ok) card = (await r.json()).card;
+  } catch (e) {}
+  currentPermissionCard = card;
+  currentPermissionDate = target;
+  if (!card) {
+    wrap.innerHTML = `<span>🛑 明日权限</span><span class="pc-empty" id="pc-chip-status">${target} 未生成</span>`;
+    return;
+  }
+  const lock = card.locked ? ' <span class="pc-locked">🔒</span>' : '';
+  wrap.innerHTML =
+    `<span>🛑 明日权限</span>` +
+    `<span class="pc-status ${card.status}" id="pc-chip-status">${permissionStatusLabel(card.status)}</span>` +
+    `<span class="pc-meta">${card.date} · 仓${Math.round((card.max_total_position || 0) * 100)}%${card.allow_margin ? ' · 融' : ''}${lock}</span>`;
+}
+
+function openPermissionModal(date) {
+  currentPermissionDate = date || currentPermissionDate || nextTradingDateYmd();
+  renderPermissionModal();
+  document.getElementById('permission-modal').classList.add('show');
+}
+
+function closePermissionModal() {
+  document.getElementById('permission-modal').classList.remove('show');
+}
+
+async function renderPermissionModal() {
+  const body = document.getElementById('pc-modal-body');
+  const title = document.getElementById('pc-modal-title');
+  const lockBtn = document.getElementById('pc-lock-btn');
+  const delBtn = document.getElementById('pc-delete-btn');
+  body.innerHTML = '<div style="color:#94a3b8;padding:20px;text-align:center">加载中…</div>';
+  title.textContent = `🛑 权限卡 · ${currentPermissionDate}`;
+
+  let card = null;
+  try {
+    const r = await fetch('/api/permission/' + currentPermissionDate);
+    if (r.ok) card = (await r.json()).card;
+  } catch (e) {}
+  currentPermissionCard = card;
+
+  if (!card) {
+    body.innerHTML = `
+      <div style="text-align:center;padding:30px 20px;color:#94a3b8">
+        <div style="font-size:14px;margin-bottom:12px">📭 该日期暂无权限卡</div>
+        <div style="font-size:12px;line-height:1.6">
+          权限卡由复盘 agent 通过 skill 写入。<br>
+          可让 agent 拉取近 3 日复盘数据后调用<br>
+          <code style="background:#1e293b;padding:2px 6px;border-radius:3px;color:#cbd5e1">POST /api/permission</code> 生成本日卡片。
+        </div>
+      </div>`;
+    lockBtn.style.display = 'none';
+    delBtn.style.display = 'none';
+    return;
+  }
+
+  lockBtn.style.display = '';
+  delBtn.style.display = '';
+  lockBtn.textContent = card.locked ? '🔓 解锁' : '🔒 锁定';
+
+  const tagList = (arr, cls) => (arr && arr.length)
+    ? arr.map(s => `<span class="pc-tag ${cls || ''}">${escapeHtml(s)}</span>`).join('')
+    : '<span style="color:#64748b;font-size:12px">（空）</span>';
+
+  body.innerHTML = `
+    <div class="pc-card-status ${card.status}">
+      ${permissionStatusLabel(card.status)} · 最大总仓 ${Math.round((card.max_total_position || 0) * 100)}%
+      ${card.locked ? ' <span style="font-size:12px;font-weight:500;opacity:.7">🔒 已锁定</span>' : ''}
+    </div>
+    ${card.rationale ? `<div class="pc-rationale">💡 ${escapeHtml(card.rationale)}</div>` : ''}
+    <div class="pc-grid">
+      <div class="pc-cell"><div class="pc-k">最大总仓</div><div class="pc-v">${Math.round((card.max_total_position || 0) * 100)}%</div></div>
+      <div class="pc-cell"><div class="pc-k">允许融资</div><div class="pc-v">${card.allow_margin ? '是' : '否'}</div></div>
+    </div>
+    <div class="pc-list"><div class="pc-list-title">✅ 允许模式 (allowed_modes)</div>${tagList(card.allowed_modes)}</div>
+    <div class="pc-list"><div class="pc-list-title">🚫 禁止动作 (forbidden_actions)</div>${tagList(card.forbidden_actions, 'danger')}</div>
+    <div class="pc-list"><div class="pc-list-title">⏸ 触发停手条件 (stop_triggers)</div>${tagList(card.stop_triggers, 'warn')}</div>
+    <div class="pc-meta-block">
+      <div>📌 来源: <code>${escapeHtml(card.source || 'manual')}</code> · 创建 ${(card.created_at || '').slice(0, 19).replace('T', ' ')} · 更新 ${(card.updated_at || '').slice(0, 19).replace('T', ' ')}</div>
+      <details>
+        <summary>🔍 决策依据 (generated_from)</summary>
+        <pre>${escapeHtml(JSON.stringify(card.generated_from || {}, null, 2))}</pre>
+      </details>
+    </div>
+  `;
+}
+
+async function togglePermissionLock() {
+  if (!currentPermissionCard) return;
+  const locked = !currentPermissionCard.locked;
+  await fetch(`/api/permission/${currentPermissionDate}/lock`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ locked }),
+  });
+  await renderPermissionModal();
+  await loadPermissionChip();
+}
+
+async function deletePermissionConfirm() {
+  if (!currentPermissionCard) return;
+  if (!confirm(`确定删除 ${currentPermissionDate} 的权限卡？\n包含手写内容会一并清空，agent 下次需重新生成。`)) return;
+  await fetch('/api/permission/' + currentPermissionDate, { method: 'DELETE' });
+  closePermissionModal();
+  await loadPermissionChip();
+}
+
+function jumpPermissionDate() {
+  const next = prompt('切换到哪一日的权限卡？(YYYY-MM-DD)', currentPermissionDate || '');
+  if (!next || !/^\d{4}-\d{2}-\d{2}$/.test(next)) return;
+  openPermissionModal(next);
+}
+
+(async () => { await loadTimeline(); await loadPermissionChip(); })();
+setInterval(loadPermissionChip, 60000);
 </script>
 <div class="op-tooltip" id="op-tooltip"></div>
 
@@ -2348,6 +2546,27 @@ loadTimeline();
     </div>
   </div>
 </div>
+
+<!-- 明日权限卡 查看 modal -->
+<div class="modal-mask" id="permission-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="pc-modal-title">🛑 明日权限卡</span>
+      <button class="modal-close" onclick="closePermissionModal()">✕</button>
+    </div>
+    <div class="modal-body" id="pc-modal-body">
+      <!-- 动态填充 -->
+    </div>
+    <div class="modal-footer">
+      <button class="modal-btn danger" id="pc-delete-btn" onclick="deletePermissionConfirm()">🗑 删除</button>
+      <div class="modal-footer-spacer"></div>
+      <button class="modal-btn" onclick="closePermissionModal()">关闭</button>
+      <button class="modal-btn" id="pc-lock-btn" onclick="togglePermissionLock()">🔒 锁定</button>
+      <button class="modal-btn" id="pc-jump-btn" onclick="jumpPermissionDate()">📅 切换日期</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (function() {
   // ── Operation tooltip（粘性）──

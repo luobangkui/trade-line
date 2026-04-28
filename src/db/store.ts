@@ -3,7 +3,7 @@ import path from 'path';
 import type {
   BaselineInput, BaselineSnapshot, BaselineRelation, FutureWatchItem,
   TradeOperation, OperationEvaluation, DailyReviewSummary,
-  PeriodReview, PeriodType, ReviewJournal,
+  PeriodReview, PeriodType, ReviewJournal, TradingPermissionCard,
 } from '../models/types';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
@@ -20,12 +20,14 @@ interface DB {
   weekly_reviews: PeriodReview[];
   monthly_reviews: PeriodReview[];
   review_journals: ReviewJournal[];
+  permission_cards: TradingPermissionCard[];
 }
 
 const EMPTY_DB: DB = {
   inputs: [], snapshots: [], relations: [], future_watchlist: [],
   trade_operations: [], operation_evaluations: [], daily_reviews: [],
   weekly_reviews: [], monthly_reviews: [], review_journals: [],
+  permission_cards: [],
 };
 
 function load(): DB {
@@ -363,4 +365,67 @@ export function deleteJournal(id: string): boolean {
   db.review_journals = db.review_journals.filter((j) => j.id !== id);
   save(db);
   return db.review_journals.length < before;
+}
+
+// ── Trading Permission Cards ──────────────────────────────
+/**
+ * 覆盖语义：每日一张卡（按 date 唯一）。
+ * - locked=true 时：拒绝覆盖（必须先 unlock 或 force=true）。
+ * - 未传 locked：保留旧值（首次写入默认 false）。
+ */
+export function upsertPermissionCard(
+  card: TradingPermissionCard,
+  opts: { force?: boolean } = {},
+): { card: TradingPermissionCard; locked_skipped: boolean } {
+  const db = load();
+  const idx = db.permission_cards.findIndex((c) => c.date === card.date);
+  if (idx >= 0) {
+    const old = db.permission_cards[idx];
+    if (old.locked && !opts.force) {
+      return { card: old, locked_skipped: true };
+    }
+    const merged: TradingPermissionCard = {
+      ...card,
+      created_at: old.created_at,
+      updated_at: new Date().toISOString(),
+    };
+    db.permission_cards[idx] = merged;
+    save(db);
+    return { card: merged, locked_skipped: false };
+  }
+  db.permission_cards.push(card);
+  save(db);
+  return { card, locked_skipped: false };
+}
+
+export function getPermissionCard(date: string): TradingPermissionCard | undefined {
+  return load().permission_cards.find((c) => c.date === date);
+}
+
+export function getPermissionCardsByRange(start: string, end: string): TradingPermissionCard[] {
+  return load().permission_cards
+    .filter((c) => c.date >= start && c.date <= end)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function getAllPermissionCards(): TradingPermissionCard[] {
+  return [...load().permission_cards].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function deletePermissionCard(date: string): boolean {
+  const db = load();
+  const before = db.permission_cards.length;
+  db.permission_cards = db.permission_cards.filter((c) => c.date !== date);
+  save(db);
+  return db.permission_cards.length < before;
+}
+
+export function setPermissionCardLock(date: string, locked: boolean): TradingPermissionCard | undefined {
+  const db = load();
+  const card = db.permission_cards.find((c) => c.date === date);
+  if (!card) return undefined;
+  card.locked = locked;
+  card.updated_at = new Date().toISOString();
+  save(db);
+  return card;
 }
