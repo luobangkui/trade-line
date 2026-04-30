@@ -3236,7 +3236,7 @@ setInterval(loadPermissionChip, 30000);
     <div class="row">
       <div class="field" style="flex:0 0 140px">
         <label>最大工具迭代</label>
-        <input id="cs-iter" type="number" min="1" max="10" value="4">
+        <input id="cs-iter" type="number" min="1" max="50" value="12">
       </div>
       <div class="field" style="flex:0 0 160px">
         <label>请求超时 (ms)</label>
@@ -4496,7 +4496,7 @@ setInterval(loadPermissionChip, 30000);
     document.getElementById('cs-key-status').textContent = (s && s.api_key_set) ? `已配置 ${s.api_key_masked}` : '未配置';
     document.getElementById('cs-model').value = (s && s.model) || 'gpt-4o-mini';
     document.getElementById('cs-temp').value = (s && s.temperature != null) ? s.temperature : 0.2;
-    document.getElementById('cs-iter').value = (s && s.max_tool_iterations) || 4;
+    document.getElementById('cs-iter').value = (s && s.max_tool_iterations) || 12;
     document.getElementById('cs-timeout').value = (s && s.request_timeout_ms) || 60000;
     document.getElementById('cs-tools').checked = (s && s.enable_tools !== false);
     document.getElementById('cs-sysprompt').value = (s && s.system_prompt) || '';

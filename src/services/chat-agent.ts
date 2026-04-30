@@ -452,7 +452,9 @@ export async function runAgent(
   let iterations = 0;
   let toolInvocations = 0;
   let assistantFinal: ChatMessage | null = null;
-  const maxIter = Math.max(1, Math.min(10, settings.max_tool_iterations || 4));
+  // 工具迭代上限：默认 12，硬上限 50（防死循环兜底）。
+  // 用户可在「对话设置」里 1~50 范围内调整；超出会被钳到上限。
+  const maxIter = Math.max(1, Math.min(50, settings.max_tool_iterations || 12));
 
   while (iterations < maxIter) {
     if (abortSignal?.aborted) throw new DOMException('aborted', 'AbortError');

@@ -19,7 +19,7 @@
 | `model` | string | `gpt-4o-mini` | 模型名 |
 | `temperature` | number | `0.2` | 0~2 |
 | `enable_tools` | boolean | `true` | 是否带上工具定义 |
-| `max_tool_iterations` | number | `4` | 单轮对话内 LLM↔tool 往返上限（1~10） |
+| `max_tool_iterations` | number | `12` | 单轮对话内 LLM↔tool 往返上限（1~50；默认 12 适合多数复盘场景） |
 | `request_timeout_ms` | number | `60000` | LLM 请求超时（5000~180000） |
 | `auth_style` | `bearer` \| `header` | `bearer` | 鉴权方式 |
 | `auth_header_name` | string | `Authorization`（bearer 模式无效）/ `accessKey`（header 模式默认） | 当 `auth_style=header` 时使用 |
