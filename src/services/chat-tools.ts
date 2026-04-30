@@ -15,7 +15,7 @@ import {
   insertChatProposal, getChatProposal, updateChatProposal,
 } from '../db/store';
 import {
-  appendAudit, rateLimitCheck, rateLimitRefund, type AuditEntry,
+  appendAudit, rateLimitCheck, rateLimitRefund, RATE_LIMIT_PER_MIN, type AuditEntry,
 } from './chat-audit';
 import {
   listSkills as registryListSkills,
@@ -711,7 +711,7 @@ export async function executeTool(
   if (threadId) {
     const rl = rateLimitCheck(threadId);
     if (!rl.ok) {
-      throw new Error(`写入频率超限：本会话最近 1 分钟已写 ${rl.recent} 次（上限 8）。请等待 ${Math.ceil(rl.retry_after_ms / 1000)}s 后再试。`);
+      throw new Error(`写入频率超限：本会话最近 1 分钟已写 ${rl.recent} 次（上限 ${RATE_LIMIT_PER_MIN}）。请等待 ${Math.ceil(rl.retry_after_ms / 1000)}s 后再试。`);
     }
   }
 

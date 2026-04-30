@@ -61,9 +61,16 @@ export function listRecentAudits(limit = 50): AuditEntry[] {
 /* ── 频率限制（按 thread）──────────────────────────────
  * 单 thread 每分钟最多 N 次写入（含 propose）。
  * 内存桶，进程重启即清零，足够防止 LLM 失控。
+ *
+ * 设计意图是"防失控"，不是"限用户"。批量改/补多笔交易 + 聚合 + 写复盘
+ * 单分钟轻松 >10 次，所以默认放宽到 30。
+ * 可通过环境变量 TRADE_LINE_WRITE_RPM 覆盖（最低 1，最高 300）。
  */
 const RATE_BUCKETS = new Map<string, number[]>();
-export const RATE_LIMIT_PER_MIN = 8;
+const ENV_RPM = Number(process.env.TRADE_LINE_WRITE_RPM);
+export const RATE_LIMIT_PER_MIN = Number.isFinite(ENV_RPM) && ENV_RPM > 0
+  ? Math.min(300, Math.max(1, Math.floor(ENV_RPM)))
+  : 30;
 const RATE_WINDOW_MS = 60_000;
 
 export function rateLimitCheck(threadId: string): { ok: true } | { ok: false; retry_after_ms: number; recent: number } {
