@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import {
   getSnapshotByDate, getSnapshotsInRange, getInputsByTimeKey,
   getOperationsByDate, getOperationsByRange, getOperationById, getEvaluationsByOperation,
@@ -19,7 +17,12 @@ import {
 import {
   appendAudit, rateLimitCheck, rateLimitRefund, type AuditEntry,
 } from './chat-audit';
-import type { ChatProposal, ChatProposalStatus } from '../models/types';
+import {
+  listSkills as registryListSkills,
+  readSkillContent as registryReadSkill,
+  selectRelevantSkills as registrySelectSkills,
+} from './skill-registry';
+import type { ChatProposal, ChatProposalStatus, SkillDoc } from '../models/types';
 import crypto from 'crypto';
 
 // ── 工具定义 ───────────────────────────────────────────
@@ -47,9 +50,6 @@ export interface ToolExecCtx {
   emit_proposal?: (p: ChatProposal) => void;
 }
 
-const SKILL_DIR = path.resolve(process.cwd(), 'skill');
-const SKILL_ENTRY = path.resolve(process.cwd(), 'SKILL.md');
-
 function isYmd(s: unknown): s is string {
   return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 }
@@ -70,21 +70,19 @@ function ymdParam(name: string, args: Record<string, unknown>, required = true):
   return v;
 }
 
-function listSkillDocs(): string[] {
-  if (!fs.existsSync(SKILL_DIR)) return [];
-  return fs.readdirSync(SKILL_DIR).filter((f) => f.endsWith('.md')).sort();
-}
-
-function readSkillDoc(name: string): string {
-  const safe = name.replace(/[^a-zA-Z0-9_.\-]/g, '');
-  if (!safe) throw new Error('文件名非法');
-  if (safe === 'SKILL.md' || safe === 'index.md') {
-    return fs.readFileSync(SKILL_ENTRY, 'utf-8');
-  }
-  const full = path.join(SKILL_DIR, safe);
-  if (!full.startsWith(SKILL_DIR)) throw new Error('文件路径越界');
-  if (!fs.existsSync(full)) throw new Error(`文件不存在: ${safe}`);
-  return fs.readFileSync(full, 'utf-8');
+function summarizeSkillForList(d: SkillDoc) {
+  return {
+    id: d.id,
+    name: d.name,
+    description: d.description,
+    source: d.source,
+    display_path: d.display_path,
+    triggers: d.triggers,
+    priority: d.priority,
+    tags: d.tags,
+    size: d.size,
+    has_frontmatter: d.has_frontmatter,
+  };
 }
 
 // ── 东方财富工具（只读）────────────────────────────────
@@ -273,20 +271,60 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   ),
   defineRead(
     'list_skill_docs',
-    '列出本地 skill/ 目录下所有 SOP / API 文档文件名（不含正文）。',
+    '列出已注册的 skill（仓库内置 SKILL.md / skill/*.md 与用户级 ~/.trade-line/skills/）。返回每个 skill 的 id/name/description/triggers/source 等元信息，不含正文。',
     { type: 'object', properties: {}, additionalProperties: false },
-    () => ({ entry: 'SKILL.md', docs: listSkillDocs() }),
+    () => {
+      const docs = registryListSkills();
+      return {
+        entry: docs.find((d) => d.source === 'repo:entry')?.id ?? null,
+        total: docs.length,
+        docs: docs.map(summarizeSkillForList),
+      };
+    },
   ),
   defineRead(
     'read_skill_doc',
-    '读取本地 skill/<name>.md 或入口 SKILL.md 的全文。name 必须是 list_skill_docs 返回中的某一项，或 "SKILL.md"。',
+    '读取某个 skill 的完整 markdown 正文。name 可传：① skill id（如 "repo:doc:sop-pretrade.md" / "user:dir:my-skill"）② skill 名（如 "sop-pretrade"）③ 兼容旧用法 "SKILL.md" / "sop-pretrade.md"。先调 list_skill_docs / search_skills 拿 id 更稳。',
     {
       type: 'object',
-      properties: { name: { type: 'string', description: '文件名，如 sop-pretrade.md 或 SKILL.md' } },
+      properties: { name: { type: 'string', description: 'skill id / name / 文件名' } },
       required: ['name'],
       additionalProperties: false,
     },
-    (args) => readSkillDoc(strParam('name', args)!),
+    (args) => {
+      const r = registryReadSkill(strParam('name', args)!);
+      return {
+        skill: summarizeSkillForList(r.skill),
+        content: r.content,
+      };
+    },
+  ),
+  defineRead(
+    'search_skills',
+    '按关键字/触发词在已注册 skill 中检索，返回最相关的若干条（仅元信息+命中原因，不含正文）。配合 read_skill_doc 使用：先 search 再读全文。',
+    {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: '关键字，可以是中文短语或任务意图描述' },
+        limit: { type: 'number', description: '返回条数上限，默认 5（最大 8）' },
+      },
+      required: ['query'],
+      additionalProperties: false,
+    },
+    (args) => {
+      const q = strParam('query', args)!;
+      const limit = Math.max(1, Math.min(8, Number(args['limit'] ?? 5) || 5));
+      const items = registrySelectSkills(q, { limit });
+      return {
+        query: q,
+        total: items.length,
+        items: items.map((it) => ({
+          ...summarizeSkillForList(it.skill),
+          score: it.score,
+          matches: it.matches,
+        })),
+      };
+    },
   ),
   defineRead(
     'get_baseline_snapshot',
@@ -498,7 +536,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   ),
   defineRead(
     'get_violations',
-    '检测某日交易违规（基于 operations + permission + pretrade）。只读。',
+    '检测某日交易纪律违规与风险信号（基于 operations + permission + position-plan + pretrade）。只读；critical 才是硬违规，warning/info 需要复盘判定。',
     {
       type: 'object',
       properties: { date: { type: 'string', description: 'YYYY-MM-DD' } },
@@ -509,7 +547,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   ),
   defineRead(
     'get_today_context',
-    '一次性拿今日的 baseline / permission / position-plan / 已记录 pretrade / violations，用于盘中快速判断。需要传入今日日期。',
+    '一次性拿今日的 baseline / permission / position-plan / 已记录 pretrade / violations，用于盘中快速判断。violations 同时包含硬违规与 warning/info 风险信号。需要传入今日日期。',
     {
       type: 'object',
       properties: { date: { type: 'string', description: 'YYYY-MM-DD' } },

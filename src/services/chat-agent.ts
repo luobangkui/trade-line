@@ -7,6 +7,7 @@ import type {
 } from '../models/types';
 import { executeTool, getOpenAIToolSchema } from './chat-tools';
 import { readImageAsDataUrl } from './chat-uploads';
+import { selectRelevantSkills, buildSkillContext } from './skill-registry';
 
 const TZ = 'Asia/Shanghai';
 const WEEKDAY_CN = ['日', '一', '二', '三', '四', '五', '六'];
@@ -105,6 +106,11 @@ function buildSystemPrompt(custom: string | undefined): string {
     '   ③ 如果用户明确说「先别写 / 我自己来 / 只看不动」，立即停止 propose，改用 read 工具。',
     'C. 写入失败/频率超限会以 error 返回，请简要告知用户原因；不要静默重试。',
     'D. 对话目的若是"总结/查询/聊几句"，不要主动 propose；用户明确表达"帮我落卡 / 写复盘 / 记一下 / 改一下"再写。',
+    '',
+    '【Skill Router】',
+    '- system 区可能会出现一段以「按用户提问自动加载的相关 skill 摘要」开头的内容，那是路由器根据本轮用户消息自动匹配的 skill 文档摘要，请优先按其中的 SOP / 字段约束执行。',
+    '- 如果摘要被截断或与本轮任务关联弱，可调用 list_skill_docs / search_skills / read_skill_doc 取完整 skill。',
+    '- 用户级 skill（source=user:*）优先级高于仓库内置（source=repo:*），冲突时以用户级为准。',
   ].join('\n');
   return header + tail;
 }
@@ -418,8 +424,28 @@ export async function runAgent(
 
   const history = listChatMessages(threadId);
   const systemPrompt = buildSystemPrompt(settings.system_prompt);
+
+  // Skill router：根据本轮用户消息匹配相关 skill，作为额外 system 段注入
+  let skillContextMsg: OpenAIMessage | null = null;
+  try {
+    const selected = trimmedUser ? selectRelevantSkills(trimmedUser, { limit: 3 }) : [];
+    if (selected.length > 0) {
+      const ctx = buildSkillContext(selected, { perSkillCharLimit: 6000, totalCharLimit: 12000 });
+      if (ctx) {
+        skillContextMsg = { role: 'system', content: ctx };
+        console.error(
+          `[chat] ${new Date().toISOString()} skill_router thread=${threadId} matched=${selected.length} `
+          + `skills=${selected.map((s) => `${s.skill.id}(${s.score})`).join(',')}`,
+        );
+      }
+    }
+  } catch (e) {
+    console.error('[chat] skill_router 失败（忽略）:', (e as Error)?.message ?? e);
+  }
+
   const baseMessages: OpenAIMessage[] = [
     { role: 'system', content: systemPrompt },
+    ...(skillContextMsg ? [skillContextMsg] : []),
     ...history.map(toOpenAI),
   ];
 

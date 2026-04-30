@@ -12,6 +12,9 @@ import {
   saveImage, deleteThreadUploads, MAX_BYTES_PER_FILE, MAX_BYTES_PER_REQUEST,
 } from '../services/chat-uploads';
 import { listRecentAudits } from '../services/chat-audit';
+import {
+  listSkills, readSkillContent, selectRelevantSkills, getRegistryDebug,
+} from '../services/skill-registry';
 
 const router = Router();
 
@@ -374,6 +377,36 @@ router.post('/proposals/:id/cancel', (req: Request, res: Response) => {
 router.get('/audits', (req: Request, res: Response) => {
   const limit = Math.max(1, Math.min(500, Number(req.query['limit']) || 50));
   return res.json({ audits: listRecentAudits(limit) });
+});
+
+// ── Skill Router 路由（只读）─────────────────────────────────
+// GET /api/chat/skills                      列出已注册 skill（不含正文）
+// GET /api/chat/skills/debug                查看 registry 元数据（root 路径、来源分布等）
+// GET /api/chat/skills/select?q=xxx&limit=  按关键字模拟 router 匹配，返回排序得分
+// GET /api/chat/skills/:id                  读取单个 skill 全文（id 可以是 list 返回的 id 或文件名）
+router.get('/skills', (_req: Request, res: Response) => {
+  return res.json({ skills: listSkills() });
+});
+
+router.get('/skills/debug', (_req: Request, res: Response) => {
+  return res.json(getRegistryDebug());
+});
+
+router.get('/skills/select', (req: Request, res: Response) => {
+  const q = String(req.query['q'] ?? '').trim();
+  if (!q) return res.status(400).json({ error: '需提供 q 关键字' });
+  const limit = Math.max(1, Math.min(8, Number(req.query['limit']) || 3));
+  const items = selectRelevantSkills(q, { limit });
+  return res.json({ query: q, items });
+});
+
+router.get('/skills/:id', (req: Request, res: Response) => {
+  try {
+    const r = readSkillContent(req.params.id);
+    return res.json({ skill: r.skill, content: r.content });
+  } catch (e: any) {
+    return res.status(404).json({ error: e?.message ?? 'unknown' });
+  }
 });
 
 export default router;

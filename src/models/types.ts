@@ -704,3 +704,54 @@ export interface ChatProposal {
   /** 谁应用/取消的：当前总是 'user' */
   decided_by?: string;
 }
+
+/* ─────────────────────────────────────────────
+ * Skill Router（轻量 markdown skill 系统）
+ * - 类似 Cursor / Codex / Claude Code 的 SKILL.md
+ * - 来源：仓库内置 + 用户级 ~/.trade-line/skills/
+ * - 第一版只是文档型能力（不执行任意脚本）
+ * ───────────────────────────────────────────── */
+
+export type SkillSource =
+  | 'repo:entry'      // 仓库根 SKILL.md
+  | 'repo:doc'        // 仓库 skill/*.md
+  | 'user:dir'        // ~/.trade-line/skills/<name>/SKILL.md
+  | 'user:doc';       // ~/.trade-line/skills/<name>.md
+
+export interface SkillFrontmatter {
+  name?: string;
+  description?: string;
+  triggers?: string[];
+  priority?: number;
+  tags?: string[];
+}
+
+export interface SkillDoc {
+  /** 稳定 id：source 与文件名/目录名构成，如 "repo:doc:sop-pretrade.md" */
+  id: string;
+  /** 人类可读名（来自 frontmatter 或目录名 / 文件名去后缀）*/
+  name: string;
+  /** 一句话描述：给 router 与 agent 选 skill 用 */
+  description: string;
+  source: SkillSource;
+  /** 绝对路径（已通过 realpath 校验在白名单根下） */
+  path: string;
+  /** 相对其根目录的展示路径，便于 UI/审计 */
+  display_path: string;
+  triggers: string[];
+  priority: number;
+  tags: string[];
+  /** 文件大小（字节）+ mtime，用于缓存判定 */
+  size: number;
+  mtime_ms: number;
+  /** 是否解析了 frontmatter；解析失败则 false 但 skill 仍可用 */
+  has_frontmatter: boolean;
+}
+
+export interface SkillSelectionItem {
+  skill: SkillDoc;
+  /** 命中的 trigger / 关键字 */
+  matches: string[];
+  /** 排序得分：priority + 命中加权 */
+  score: number;
+}
