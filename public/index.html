@@ -3287,8 +3287,8 @@ setInterval(loadPermissionChip, 30000);
   const ATTACH_BYTES_LIMIT = 5 * 1024 * 1024;
 
   const SLASH_COMMANDS = [
-    { cmd: '/today',       desc: '拉今日全景：baseline+permission+持仓计划+违规/风险信号',
-      template: '调用 get_today_context 看今天 ${TODAY}，告诉我市场基线、permission、持仓计划、硬违规和风险信号。' },
+    { cmd: '/today',       desc: '拉今日全景：baseline+permission+交易计划+持仓计划+违规',
+      template: '调用 get_today_context 看今天 ${TODAY}，告诉我市场基线、permission、下一交易日计划、持仓计划、硬违规和风险信号。' },
     { cmd: '/quote',       desc: '拉个股最新报价',
       args: '<code>',      template: '调用 fetch_eastmoney_quote 拉 {code} 最新报价，再用一句话总结涨跌。' },
     { cmd: '/kline',       desc: '拉个股历史 K 线',

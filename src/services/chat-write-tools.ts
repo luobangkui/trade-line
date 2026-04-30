@@ -1,5 +1,5 @@
 /**
- * 写入工具定义 — 14 个，复用现有 service 落库逻辑。
+ * 写入工具定义，复用现有 service 落库逻辑。
  *
  * 每个工具描述了：
  *   - parameters: OpenAI 工具调用 schema
@@ -21,6 +21,7 @@ import {
   insertPretradeReview, insertJournal, updateJournal, getJournalById,
   upsertPermissionCard, getPermissionCard, setPermissionCardLock,
   upsertPositionPlan, getPositionPlan, setPositionPlanLock,
+  upsertNextTradePlan, getNextTradePlan, setNextTradePlanLock,
   upsertDailyReview, getDailyReview, getSnapshotByDate,
   insertInput, insertFutureItem, getPeriodReview,
 } from '../db/store';
@@ -34,6 +35,7 @@ import type {
   ReviewJournal, ReviewJournalCreateRequest, ReviewJournalPatchRequest,
   TradingPermissionCard, TradingPermissionCardUpsertRequest,
   PositionPlan, PositionPlanUpsertRequest,
+  NextTradePlan, NextTradePlanUpsertRequest,
   PeriodReviewPlanRequest, PeriodType,
   BaselineInput, FutureWatchItem, InputUploadRequest,
 } from '../models/types';
@@ -53,6 +55,7 @@ export type WriteToolName =
   | 'propose_apply_period_plan'
   | 'propose_upsert_permission_card'
   | 'propose_upsert_position_plan'
+  | 'propose_upsert_next_trade_plan'
   | 'propose_override_baseline'
   | 'propose_replace_journal';
 
@@ -454,6 +457,7 @@ const tCreatePretrade: WriteHandler = {
       symbol: { type: 'string' },
       name: { type: 'string' },
       action: { type: 'string', enum: ['buy', 'add', 'rebuy', 'switch'] },
+      risk_action: { type: 'string', enum: ['new_buy', 'add_winner', 'add_loser', 'rebuy_same_symbol', 'switch_position', 'reduce', 'sell', 'hold'] },
       mode: { type: 'string', description: '该操作所属模式名，例如 A类启动确认' },
       rationale: { type: 'string' },
       exit_condition: { type: 'string', description: '亏损/触发卖出条件' },
@@ -461,10 +465,16 @@ const tCreatePretrade: WriteHandler = {
       planned_quantity: { type: 'number' },
       planned_amount: { type: 'number' },
       planned_price: { type: 'number' },
+      source_sell_symbol: { type: 'string', description: '调仓来源卖出标的代码' },
+      source_sell_amount: { type: 'number', description: '调仓来源卖出金额' },
+      net_position_delta: { type: 'number', description: '本次交易导致总仓净变化，0.05 表示增加 5%' },
+      current_total_position: { type: 'number', description: '交易前总仓位，0-1' },
+      projected_total_position: { type: 'number', description: '交易后总仓位，0-1' },
       max_allowed_amount: { type: 'number' },
       reasons: { type: 'array', items: { type: 'string' } },
       wait_conditions: { type: 'array', items: { type: 'string' } },
       forbidden_actions: { type: 'array', items: { type: 'string' } },
+      matched_risk_rules: { type: 'array', items: { type: 'string' } },
       current_position_note: { type: 'string' },
       checked_permission_date: { type: 'string', description: 'YYYY-MM-DD' },
       checked_permission_status: { type: 'string', enum: ['protect', 'normal', 'attack'] },
@@ -487,9 +497,15 @@ const tCreatePretrade: WriteHandler = {
       symbol: body.symbol,
       name: body.name,
       action: body.action,
+      risk_action: body.risk_action,
       planned_quantity: body.planned_quantity,
       planned_amount: body.planned_amount,
       planned_price: body.planned_price,
+      source_sell_symbol: body.source_sell_symbol,
+      source_sell_amount: body.source_sell_amount,
+      net_position_delta: body.net_position_delta,
+      current_total_position: body.current_total_position,
+      projected_total_position: body.projected_total_position,
       mode: body.mode,
       rationale: body.rationale,
       exit_condition: body.exit_condition,
@@ -499,6 +515,7 @@ const tCreatePretrade: WriteHandler = {
       reasons: body.reasons ?? [],
       wait_conditions: body.wait_conditions ?? [],
       forbidden_actions: body.forbidden_actions ?? [],
+      matched_risk_rules: body.matched_risk_rules ?? [],
       checked_permission_date: body.checked_permission_date,
       checked_permission_status: body.checked_permission_status,
       linked_position_plan_id: body.linked_position_plan_id,
@@ -767,6 +784,7 @@ const tProposePermission: WriteHandler = {
       allowed_modes: { type: 'array', items: { type: 'string' } },
       forbidden_actions: { type: 'array', items: { type: 'string' } },
       stop_triggers: { type: 'array', items: { type: 'string' } },
+      risk_matrix: { type: 'object', additionalProperties: true },
       rationale: { type: 'string', description: '一句话总结今日为何这个状态' },
       generated_from: { type: 'object', additionalProperties: true },
       locked: { type: 'boolean', description: '是否锁定（locked 后只能用 force 覆盖）' },
@@ -785,11 +803,12 @@ const tProposePermission: WriteHandler = {
     const card: TradingPermissionCard = {
       date: body.date,
       status: body.status,
-      max_total_position: body.max_total_position,
+      max_total_position: body.max_total_position ?? existing?.max_total_position,
       allow_margin: body.allow_margin ?? existing?.allow_margin ?? false,
       allowed_modes: body.allowed_modes ?? existing?.allowed_modes ?? [],
       forbidden_actions: body.forbidden_actions ?? existing?.forbidden_actions ?? [],
       stop_triggers: body.stop_triggers ?? existing?.stop_triggers ?? [],
+      risk_matrix: body.risk_matrix ?? existing?.risk_matrix,
       rationale: body.rationale ?? existing?.rationale ?? '',
       generated_from: body.generated_from ?? existing?.generated_from ?? {},
       source: body.source ?? ctx.source,
@@ -877,7 +896,115 @@ const tProposePositionPlan: WriteHandler = {
 };
 
 /* ─────────────────────────────────────────────
- * 13. propose_override_baseline  (confirm, medium)
+ * 13. propose_upsert_next_trade_plan  (confirm, high)
+ * ───────────────────────────────────────────── */
+const tProposeNextTradePlan: WriteHandler = {
+  name: 'propose_upsert_next_trade_plan',
+  side_effect: 'write_confirm',
+  risk: 'high',
+  description: '【需用户确认】写入 / 覆盖某日下一交易日交易计划（预计开仓、观察池、持仓处理备注）。盘中预审会优先参考该计划。',
+  parameters: {
+    type: 'object',
+    properties: {
+      date: { type: 'string', description: 'YYYY-MM-DD' },
+      market_view: { type: 'string' },
+      max_total_position: { type: 'number', description: '计划总仓上限，0-1' },
+      focus_themes: { type: 'array', items: { type: 'string' } },
+      no_trade_rules: { type: 'array', items: { type: 'string' } },
+      entries: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            symbol: { type: 'string' },
+            name: { type: 'string' },
+            mode: { type: 'string' },
+            risk_action: { type: 'string', enum: ['new_buy', 'add_winner', 'add_loser', 'rebuy_same_symbol', 'switch_position', 'reduce', 'sell', 'hold'] },
+            planned_amount: { type: 'number' },
+            planned_position: { type: 'number', description: '计划仓位，0-1' },
+            thesis: { type: 'string' },
+            entry_triggers: { type: 'array', items: { type: 'string' } },
+            invalidation_condition: { type: 'string' },
+            priority: { type: 'number' },
+            status: { type: 'string', enum: ['planned', 'watch', 'triggered', 'cancelled'] },
+            notes: { type: 'string' },
+          },
+          required: ['symbol', 'name', 'mode', 'thesis', 'entry_triggers', 'invalidation_condition', 'status'],
+          additionalProperties: false,
+        },
+      },
+      watchlist: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            symbol: { type: 'string' },
+            name: { type: 'string' },
+            watch_reason: { type: 'string' },
+            trigger_conditions: { type: 'array', items: { type: 'string' } },
+            upgrade_condition: { type: 'string' },
+            status: { type: 'string', enum: ['planned', 'watch', 'triggered', 'cancelled'] },
+            notes: { type: 'string' },
+          },
+          required: ['symbol', 'name', 'watch_reason', 'trigger_conditions', 'status'],
+          additionalProperties: false,
+        },
+      },
+      position_notes: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            symbol: { type: 'string' },
+            name: { type: 'string' },
+            plan_id: { type: 'string' },
+            action_plan: { type: 'string' },
+            key_levels: { type: 'array', items: { type: 'string' } },
+            notes: { type: 'string' },
+          },
+          required: ['symbol', 'name', 'action_plan'],
+          additionalProperties: false,
+        },
+      },
+      locked: { type: 'boolean' },
+    },
+    required: ['date'],
+    additionalProperties: false,
+  },
+  preview: (args) => ({
+    summary: `下一交易日计划 ${args['date']}：开仓 ${Array.isArray(args['entries']) ? args['entries'].length : 0} / 观察 ${Array.isArray(args['watchlist']) ? args['watchlist'].length : 0}`,
+    target: `next_trade_plan:${args['date']}`,
+  }),
+  snapshot: (args) => getNextTradePlan(ymd(args['date'])) ?? null,
+  apply(args, ctx) {
+    const body = args as unknown as NextTradePlanUpsertRequest;
+    const existing = getNextTradePlan(body.date);
+    const plan: NextTradePlan = {
+      id: existing?.id ?? uuidv4(),
+      date: body.date,
+      market_view: body.market_view ?? existing?.market_view ?? '',
+      max_total_position: body.max_total_position,
+      focus_themes: body.focus_themes ?? existing?.focus_themes ?? [],
+      no_trade_rules: body.no_trade_rules ?? existing?.no_trade_rules ?? [],
+      entries: body.entries ?? existing?.entries ?? [],
+      watchlist: body.watchlist ?? existing?.watchlist ?? [],
+      position_notes: body.position_notes ?? existing?.position_notes ?? [],
+      source: body.source ?? ctx.source,
+      locked: body.locked ?? existing?.locked ?? false,
+      created_at: existing?.created_at ?? nowIso(),
+      updated_at: nowIso(),
+    };
+    const r = upsertNextTradePlan(plan, { force: true });
+    if (r.locked_skipped) throw new Error('下一交易日计划已锁定且 force 失败');
+    if (typeof body.locked === 'boolean') {
+      setNextTradePlanLock(body.date, body.locked);
+    }
+    return { date: r.plan.date, entries: r.plan.entries.length, watchlist: r.plan.watchlist.length, locked: r.plan.locked };
+  },
+};
+
+/* ─────────────────────────────────────────────
+ * 14. propose_override_baseline  (confirm, medium)
  * ───────────────────────────────────────────── */
 const tProposeOverride: WriteHandler = {
   name: 'propose_override_baseline',
@@ -1003,6 +1130,7 @@ export const WRITE_HANDLERS: Record<WriteToolName, WriteHandler> = {
   propose_apply_period_plan: tProposePeriodPlan,
   propose_upsert_permission_card: tProposePermission,
   propose_upsert_position_plan: tProposePositionPlan,
+  propose_upsert_next_trade_plan: tProposeNextTradePlan,
   propose_override_baseline: tProposeOverride,
   propose_replace_journal: tProposeReplaceJournal,
 };

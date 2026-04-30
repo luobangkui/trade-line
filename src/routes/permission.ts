@@ -30,6 +30,7 @@ function buildCard(body: TradingPermissionCardUpsertRequest, existing?: TradingP
     allowed_modes: body.allowed_modes ?? [],
     forbidden_actions: body.forbidden_actions ?? [],
     stop_triggers: body.stop_triggers ?? [],
+    risk_matrix: body.risk_matrix ?? existing?.risk_matrix,
     rationale: body.rationale ?? '',
     generated_from: body.generated_from ?? {},
     source: body.source ?? 'manual',

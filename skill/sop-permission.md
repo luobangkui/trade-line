@@ -41,7 +41,7 @@
    POST /api/permission
    {
      date, status, max_total_position,
-     allow_margin, allowed_modes, forbidden_actions, stop_triggers,
+     allow_margin, allowed_modes, forbidden_actions, stop_triggers, risk_matrix,
      rationale: "一句话说明今天为何这个档",
      generated_from: { baseline_stage, avg_score_3d, recent_mistakes,
                        based_on_dates, triggered_rules, reasoning },
@@ -109,7 +109,22 @@
 
 ---
 
-## forbidden_actions / stop_triggers 写作
+## risk_matrix / forbidden_actions / stop_triggers 写作
+
+`risk_matrix` 是机器判定字段；`forbidden_actions` 和 `stop_triggers` 是给人看的摘要，保留用于快速展示和兼容旧卡。
+
+第一版矩阵至少覆盖：
+
+| action | protect 默认 | normal 默认 | attack 默认 |
+|---|---|---|---|
+| `sell` / `reduce` | 允许 | 允许 | 允许 |
+| `new_buy` | 禁止净新增风险 | 必须预审 | 小仓允许/必须预审 |
+| `switch_position` | 允许计划内调仓，净仓不增 | 允许小幅净增 | 允许计划内调仓 |
+| `rebuy_same_symbol` | 必须预审并冷却 | 必须预审 | 必须预审 |
+| `add_winner` | 小仓、必须预审 | 小仓允许 | 小仓允许 |
+| `add_loser` | 禁止 | 禁止 | 禁止 |
+
+调仓不是违规本身；违规的是没有预审、没有退出条件、总仓增加、从低风险仓换到高波动后排，或把调仓变成亏损补仓。
 
 **好的禁止动作 = 具体行为 + 不留模糊空间**
 

@@ -4,9 +4,11 @@ import {
   getDailyReview, getPeriodReview,
   getPermissionCard, getPermissionCardsByRange,
   getPositionPlansByDate, getPositionPlansByRange, getPositionPlan,
+  getNextTradePlan, getNextTradePlansByRange,
   getPretradeReviewsByDate, getPretradeReviewsByRange, getPretradeReview,
 } from '../db/store';
 import { detectTradeViolations } from './violation-detector';
+import { riskMatrixForCard } from './risk-matrix';
 import {
   aggregatePeriodReview, buildPeriodInsight, isoWeekKey, monthKey,
 } from './period-reviewer';
@@ -503,6 +505,31 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     (args) => getPositionPlan(ymdParam('date', args)!, strParam('symbol', args)!) ?? null,
   ),
   defineRead(
+    'get_next_trade_plan',
+    '查询某日下一交易日交易计划（计划开仓、观察池、持仓处理备注）。若不存在返回 null。',
+    {
+      type: 'object',
+      properties: { date: { type: 'string', description: 'YYYY-MM-DD' } },
+      required: ['date'],
+      additionalProperties: false,
+    },
+    (args) => getNextTradePlan(ymdParam('date', args)!) ?? null,
+  ),
+  defineRead(
+    'get_next_trade_plans',
+    '查询区间下一交易日交易计划。',
+    {
+      type: 'object',
+      properties: {
+        start: { type: 'string', description: 'YYYY-MM-DD' },
+        end: { type: 'string', description: 'YYYY-MM-DD' },
+      },
+      required: ['start', 'end'],
+      additionalProperties: false,
+    },
+    (args) => getNextTradePlansByRange(ymdParam('start', args)!, ymdParam('end', args)!),
+  ),
+  defineRead(
     'get_pretrade_reviews',
     '查询盘中预审记录。优先 date；或提供 start+end。',
     {
@@ -557,12 +584,16 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     (args) => {
       const d = ymdParam('date', args)!;
       const weekKey = isoWeekKey(d);
+      const permission = getPermissionCard(d) ?? null;
+      const nextTradePlan = getNextTradePlan(d) ?? null;
       return {
         date: d,
         week_key: weekKey,
         month_key: monthKey(d),
         baseline: getSnapshotByDate(d) ?? null,
-        permission: getPermissionCard(d) ?? null,
+        permission,
+        risk_matrix: riskMatrixForCard(permission ?? undefined),
+        next_trade_plan: nextTradePlan,
         position_plans: getPositionPlansByDate(d),
         pretrade_reviews: getPretradeReviewsByDate(d),
         violations: detectTradeViolations(d),

@@ -1,7 +1,9 @@
 import {
   getOperationsByDate, getPermissionCard, getPositionPlansByDate, getPretradeReviewsByDate,
+  getNextTradePlan,
 } from '../db/store';
-import type { PositionPlan, TradeOperation, TradeViolation } from '../models/types';
+import type { PositionPlan, PretradeReview, TradeOperation, TradeViolation } from '../models/types';
+import { evaluateTradeIntent, riskMatrixForCard } from './risk-matrix';
 
 function minutesBetween(a: string, b: string): number {
   return (new Date(b).getTime() - new Date(a).getTime()) / 60000;
@@ -17,6 +19,14 @@ function isBuyLike(op: TradeOperation): boolean {
 
 function isSellLike(op: TradeOperation): boolean {
   return op.direction === 'sell' || op.direction === 'reduce';
+}
+
+function matchedAllowedPretrade(op: TradeOperation, pretrades: PretradeReview[]): PretradeReview | undefined {
+  return pretrades.find((p) =>
+    p.symbol === op.symbol
+    && new Date(p.timestamp).getTime() <= new Date(op.timestamp).getTime()
+    && (p.verdict === 'ALLOW' || p.verdict === 'ALLOW_SMALL')
+  );
 }
 
 function hasForbidden(cardText: string, keywords: string[]): boolean {
@@ -79,6 +89,7 @@ export function detectTradeViolations(date: string): TradeViolation[] {
   const ops = getOperationsByDate(date);
   const permission = getPermissionCard(date);
   const pretrades = getPretradeReviewsByDate(date);
+  const nextTradePlan = getNextTradePlan(date) ?? null;
   const positionPlans = new Map(getPositionPlansByDate(date).map((p) => [p.symbol, p]));
   const violations: TradeViolation[] = [];
   const cardText = permission ? JSON.stringify(permission) : '';
@@ -137,38 +148,71 @@ export function detectTradeViolations(date: string): TradeViolation[] {
     ));
   }
 
-  const sellThenBuyIds: string[] = [];
+  const switchSignals: TradeViolation[] = [];
   const sameSymbolSellThenBuyIds: string[] = [];
+  const switchWindowMinutes = riskMatrixForCard(permission).switch_policy.source_sell_window_minutes;
   for (const sell of sellOps) {
     for (const buy of buyOps) {
       const gap = minutesBetween(sell.timestamp, buy.timestamp);
-      if (gap >= 0 && gap <= 10) {
+      if (gap >= 0 && gap <= switchWindowMinutes) {
         if (sell.symbol === buy.symbol) {
           sameSymbolSellThenBuyIds.push(sell.id, buy.id);
         } else {
-          sellThenBuyIds.push(sell.id, buy.id);
+          const matchedPretrade = matchedAllowedPretrade(buy, pretrades);
+          const evaluation = evaluateTradeIntent({
+            date,
+            timestamp: buy.timestamp,
+            symbol: buy.symbol,
+            name: buy.name,
+            action: 'switch',
+            risk_action: 'switch_position',
+            mode: matchedPretrade?.mode,
+            planned_amount: buy.amount,
+            source_sell_amount: sell.amount,
+            net_position_delta: matchedPretrade?.net_position_delta,
+            exit_condition: matchedPretrade?.exit_condition,
+            rationale: operationText(buy),
+            tags: buy.tags,
+            has_pretrade: !!matchedPretrade,
+            position_plan: positionPlans.get(buy.symbol),
+            next_trade_plan: nextTradePlan,
+          }, permission);
+          if (evaluation.severity === 'critical') {
+            switchSignals.push(makeViolation(
+              date,
+              'switch_position_blocked',
+              'critical',
+              '调仓动作违反风控矩阵',
+              `卖出 ${sell.name} 后买入 ${buy.name}，命中：${evaluation.reasons.join('；')}`,
+              [sell.id, buy.id],
+              '次日调仓必须先预审，且不得净新增风险。',
+            ));
+          } else if (!matchedPretrade || evaluation.verdict === 'WAIT' || evaluation.verdict === 'REJECT') {
+            switchSignals.push(makeViolation(
+              date,
+              'switch_position_needs_review',
+              'warning',
+              '调仓动作需要补充预审依据',
+              `卖出 ${sell.name} 后买入 ${buy.name}，当前不直接判硬违规，但需补充：${[
+                ...evaluation.reasons,
+                ...evaluation.wait_conditions,
+              ].join('；')}`,
+              [sell.id, buy.id],
+              '不自动惩罚；复盘时确认是否为净仓不增的计划内调仓。',
+            ));
+          }
         }
       }
     }
   }
-  if (sellThenBuyIds.length > 0) {
-    violations.push(makeViolation(
-      date,
-      'sell_then_buy_10m',
-      'critical',
-      '卖出后 10 分钟内买入',
-      '检测到卖出后 10 分钟内买入/换仓，说明现金没有冷却。',
-      [...new Set(sellThenBuyIds)],
-      '次日卖出后现金必须保留到下一交易日。',
-    ));
-  }
+  violations.push(...switchSignals);
   if (sameSymbolSellThenBuyIds.length > 0) {
     violations.push(makeViolation(
       date,
-      'same_symbol_sell_then_buy_10m',
+      'same_symbol_sell_then_buy_window',
       'warning',
-      '同票卖出后 10 分钟内买回',
-      '检测到同一标的卖出后 10 分钟内买回，可能是纠错，也可能是倒T/情绪性反复，需要复盘判定。',
+      '同票卖出后短时间内买回',
+      `检测到同一标的卖出后 ${switchWindowMinutes} 分钟窗口内买回，可能是纠错，也可能是倒T/情绪性反复，需要复盘判定。`,
       [...new Set(sameSymbolSellThenBuyIds)],
       '不自动惩罚；若复盘判定为倒T或情绪反复，次日该票只允许减仓。',
     ));
@@ -255,11 +299,7 @@ export function detectTradeViolations(date: string): TradeViolation[] {
 
   const pretradeMatchedOps = new Set<string>();
   for (const op of buyOps) {
-    const matched = pretrades.find((p) =>
-      p.symbol === op.symbol
-      && new Date(p.timestamp).getTime() <= new Date(op.timestamp).getTime()
-      && (p.verdict === 'ALLOW' || p.verdict === 'ALLOW_SMALL')
-    );
+    const matched = matchedAllowedPretrade(op, pretrades);
     if (matched) pretradeMatchedOps.add(op.id);
   }
   const noPretrade = buyOps.filter((o) => !pretradeMatchedOps.has(o.id));

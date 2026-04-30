@@ -37,10 +37,11 @@
 1. 查权限
    ├─ GET /api/permission/today
    ├─ 若今日卡不存在，GET /api/permission/:today
-   └─ 读取 status / max_total_position / allowed_modes / forbidden_actions / stop_triggers
+   └─ 读取 status / max_total_position / allowed_modes / risk_matrix
 
 2. 查系统内历史
    ├─ GET /api/baseline/snapshot?date=$today
+   ├─ GET /api/next-trade-plan?date=$today
    ├─ GET /api/review/daily?start=$last_5&end=$today
    ├─ GET /api/review/operations?start=$last_5&end=$today
    └─ GET /api/review/weekly/$week/insights?lookback=6
@@ -52,12 +53,13 @@
    └─ 市场背景：指数、涨跌家数、涨停/跌停池、强弱板块
 
 4. 做硬规则检查
-   ├─ 是否违反权限卡 forbidden_actions
-   ├─ 是否命中 stop_triggers
-   ├─ 是否属于 allowed_modes
-   ├─ 是否会让总仓超过 max_total_position
-   ├─ 是否是卖出后马上买回 / 买新票
-   └─ 是否是亏损票补仓、倒T、未验证第二笔买入
+   ├─ 先识别 risk_action：new_buy / add_winner / add_loser / rebuy_same_symbol / switch_position
+   ├─ 优先按 risk_matrix 判断动作权限
+   ├─ 是否属于 allowed_modes、是否有买错退出条件
+   ├─ 是否在下一交易日计划 entries / watchlist / 计划外
+   ├─ 是否会让总仓超过 max_total_position 或净新增风险上限
+   ├─ 若为 switch_position，是否有对应卖出资金、是否净仓不增加
+   └─ 若为 add_loser / 摊低成本 / 亏损补仓，直接硬拒绝
 
 5. 输出预审结论
    ├─ REJECT：禁止买
@@ -101,7 +103,10 @@ curl --noproxy '*' -sS -A 'Mozilla/5.0' \
 - 买入动作不属于 `allowed_modes`。
 - 用户没有给出买错退出条件。
 - 买入后会超过 `max_total_position`。
-- 卖出后 10 分钟内想买回同票或换新票。
+- `risk_matrix` 判定为 `forbid`。
+- 保护档 `new_buy` 会净新增风险。
+- 保护档计划外新开仓。
+- `switch_position` 无预审、无卖出资金来源，或买入金额超过对应卖出金额。
 - 亏损票补仓、摊低成本、倒 T。
 - 同一标的第一笔未验证就想买第二笔。
 - 外部消息、群消息、顾问信息没有经过主线/强度/买点/止损验证。
@@ -111,6 +116,8 @@ curl --noproxy '*' -sS -A 'Mozilla/5.0' \
 不硬拒绝但条件不足时，用 `WAIT`：
 
 - 个股未站回关键价：等待站回并保持 10-15 分钟。
+- 标的只在 `watchlist`，等待满足升级为 entries 的触发条件。
+- 标的不在 `next_trade_plan`，等待补充强理由并重新生成/修订计划。
 - 板块不是当日主线：等待板块进入涨幅/成交额前列。
 - 放量不足：等待成交额或量比达到预设条件。
 - 市场修复但个人权限未恢复：等待次日权限卡升级。
@@ -143,4 +150,4 @@ curl --noproxy '*' -sS -A 'Mozilla/5.0' \
 - `REJECT` 不是看空标的，而是当前用户没有交易权限。
 - `WAIT` 必须给可验证的价格/时间/量能条件。
 - `ALLOW_SMALL` 必须写金额上限，默认不超过总资产 5% 或权限卡更低阈值。
-- `ALLOW` 不能用于 protect 日的新开仓；除非权限卡明确允许且未命中任何风险规则。
+- `ALLOW` 不能用于 protect 日的净新增风险；protect 日计划内调仓可在净仓不增、有预审、有退出条件时给 `ALLOW_SMALL/ALLOW`。

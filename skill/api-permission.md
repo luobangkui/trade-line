@@ -31,8 +31,9 @@
 | `max_total_position` | `number` | ✅ | 最大总仓位 0-1（小数）|
 | `allow_margin` | `boolean` | 否 | 是否允许融资，默认 false |
 | `allowed_modes` | `string[]` | 否 | 允许的交易模式（如 "A类启动确认", "处理失败仓"）|
-| `forbidden_actions` | `string[]` | 否 | 禁止动作（如 "补仓", "倒T", "追涨"）|
-| `stop_triggers` | `string[]` | 否 | 触发停手条件（如 "卖出后想马上买入"）|
+| `forbidden_actions` | `string[]` | 否 | 人可读禁止动作摘要（兼容旧卡；机器判定优先读 `risk_matrix`）|
+| `stop_triggers` | `string[]` | 否 | 人可读触发停手摘要（兼容旧卡；机器判定优先读 `risk_matrix`）|
+| `risk_matrix` | `object` | 否 | 结构化风控矩阵：动作权限、调仓、净仓、预审、熔断、恢复规则 |
 | `rationale` | `string` | 否 | 一句话总结今天为什么是这个状态 |
 | `generated_from` | `object` | 否 | 决策依据（agent 自填用于追溯）|
 | `source` | `string` | 否 | `'agent:permission'` / `'manual'` / `'self'`，默认 `'manual'` |
@@ -53,6 +54,53 @@
 ```
 
 > Agent 应**始终填写 generated_from**，便于事后审查"为什么当天是保护档"。
+
+### `risk_matrix` 推荐结构
+
+`risk_matrix` 是机器判定主入口；没有该字段的旧卡会由服务根据 `status/max_total_position/forbidden_actions` 生成默认矩阵。
+
+```json
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "switch_position:require_pretrade",
+      "action": "switch_position",
+      "decision": "require_pretrade",
+      "reason": "保护档允许计划内调仓，但必须净仓位不增加。",
+      "require_pretrade": true,
+      "require_exit_condition": true,
+      "require_allowed_mode": true,
+      "allow_net_position_increase": false,
+      "max_net_position_increase": 0
+    }
+  ],
+  "switch_policy": {
+    "allow_switch": true,
+    "requires_pretrade": true,
+    "source_sell_window_minutes": 30,
+    "max_switch_net_increase": 0,
+    "target_requirements": ["目标属于 allowed_modes", "有买错退出条件", "不是亏损补仓或追高后排"]
+  },
+  "circuit_breakers": [
+    { "id": "critical_violation", "trigger": "当日出现 critical 违规", "restriction": "次日维持或降为 protect", "severity": "critical" }
+  ],
+  "recovery_rules": [
+    { "id": "two_clean_days", "condition": "连续 2 个交易日无 critical 且买入均预审", "restored_permission": "normal", "rationale": "纪律恢复后可回 normal" }
+  ]
+}
+```
+
+动作枚举：
+
+| action | 含义 |
+|---|---|
+| `new_buy` | 净新增风险的新开仓 |
+| `add_winner` | 正反馈/盈利仓加仓 |
+| `add_loser` | 亏损票补仓、摊低成本 |
+| `rebuy_same_symbol` | 同票卖出后回补 |
+| `switch_position` | 跨标的调仓 |
+| `reduce` / `sell` / `hold` | 降风险或不新增风险动作 |
 
 ---
 

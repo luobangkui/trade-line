@@ -416,6 +416,64 @@ export type ReviewJournalPatchRequest = Partial<ReviewJournalCreateRequest>;
  * ───────────────────────────────────────────── */
 
 export type PermissionStatus = 'protect' | 'normal' | 'attack';
+export type RiskAction =
+  | 'new_buy'
+  | 'add_winner'
+  | 'add_loser'
+  | 'rebuy_same_symbol'
+  | 'switch_position'
+  | 'reduce'
+  | 'sell'
+  | 'hold';
+export type RiskDecision = 'forbid' | 'require_pretrade' | 'allow_small' | 'allow' | 'observe_only';
+
+export interface RiskRule {
+  id: string;
+  action: RiskAction;
+  decision: RiskDecision;
+  reason: string;
+  require_pretrade?: boolean;
+  require_exit_condition?: boolean;
+  require_allowed_mode?: boolean;
+  allow_net_position_increase?: boolean;
+  max_net_position_increase?: number;
+  max_single_trade_position?: number;
+  max_single_trade_amount?: number;
+  cooldown_minutes?: number;
+  forbidden_keywords?: string[];
+  allowed_modes?: string[];
+}
+
+export interface RiskSwitchPolicy {
+  allow_switch: boolean;
+  requires_pretrade: boolean;
+  source_sell_window_minutes: number;
+  max_switch_net_increase: number;
+  target_requirements: string[];
+}
+
+export interface IntradayCircuitBreaker {
+  id: string;
+  trigger: string;
+  restriction: string;
+  severity: ViolationSeverity;
+}
+
+export interface PermissionRecoveryRule {
+  id: string;
+  condition: string;
+  restored_permission: PermissionStatus;
+  rationale: string;
+}
+
+export interface RiskMatrix {
+  version: number;
+  rules: RiskRule[];
+  switch_policy: RiskSwitchPolicy;
+  circuit_breakers: IntradayCircuitBreaker[];
+  recovery_rules: PermissionRecoveryRule[];
+  notes?: string[];
+}
 
 /** 卡片决策依据：agent 自填，便于后续追溯/对比 */
 export interface PermissionGeneratedFrom {
@@ -441,6 +499,8 @@ export interface TradingPermissionCard {
   allowed_modes: string[];           // ["A类启动确认", "处理失败仓"]
   forbidden_actions: string[];       // ["补仓","倒T","追涨","新开后排"]
   stop_triggers: string[];           // ["卖出后想马上买入","当日做了3种模式"]
+  /** 机器可读风控矩阵；旧卡可为空，由 service 生成默认矩阵 */
+  risk_matrix?: RiskMatrix;
   /** 一句话总结今天为何是这个状态 */
   rationale: string;
   /** 决策来源数据 */
@@ -461,6 +521,7 @@ export interface TradingPermissionCardUpsertRequest {
   allowed_modes?: string[];
   forbidden_actions?: string[];
   stop_triggers?: string[];
+  risk_matrix?: RiskMatrix;
   rationale?: string;
   generated_from?: PermissionGeneratedFrom;
   source?: string;
@@ -546,9 +607,15 @@ export interface PretradeReview {
   symbol: string;
   name: string;
   action: PretradeAction;
+  risk_action?: RiskAction;
   planned_quantity?: number;
   planned_amount?: number;
   planned_price?: number;
+  source_sell_symbol?: string;
+  source_sell_amount?: number;
+  net_position_delta?: number;
+  current_total_position?: number;
+  projected_total_position?: number;
   mode: string;
   rationale: string;
   exit_condition: string;
@@ -558,6 +625,7 @@ export interface PretradeReview {
   reasons: string[];
   wait_conditions: string[];
   forbidden_actions: string[];
+  matched_risk_rules?: string[];
   checked_permission_date?: string;
   checked_permission_status?: PermissionStatus;
   linked_position_plan_id?: string;
@@ -572,9 +640,15 @@ export interface PretradeReviewCreateRequest {
   symbol: string;
   name: string;
   action: PretradeAction;
+  risk_action?: RiskAction;
   planned_quantity?: number;
   planned_amount?: number;
   planned_price?: number;
+  source_sell_symbol?: string;
+  source_sell_amount?: number;
+  net_position_delta?: number;
+  current_total_position?: number;
+  projected_total_position?: number;
   mode: string;
   rationale: string;
   exit_condition: string;
@@ -584,11 +658,82 @@ export interface PretradeReviewCreateRequest {
   reasons?: string[];
   wait_conditions?: string[];
   forbidden_actions?: string[];
+  matched_risk_rules?: string[];
   checked_permission_date?: string;
   checked_permission_status?: PermissionStatus;
   linked_position_plan_id?: string;
   market_snapshot?: Record<string, unknown>;
   source?: string;
+}
+
+/* ─────────────────────────────────────────────
+ * 下一交易日交易计划 (Next Trade Plan)
+ * 盘前计划层：计划内标的获得预审资格，计划外买入更严格
+ * ───────────────────────────────────────────── */
+
+export type NextTradePlanItemStatus = 'planned' | 'watch' | 'triggered' | 'cancelled';
+
+export interface NextTradePlanEntry {
+  symbol: string;
+  name: string;
+  mode: string;
+  risk_action?: RiskAction;
+  planned_amount?: number;
+  planned_position?: number;
+  thesis: string;
+  entry_triggers: string[];
+  invalidation_condition: string;
+  priority?: number;
+  status: NextTradePlanItemStatus;
+  notes?: string;
+}
+
+export interface NextTradePlanWatchItem {
+  symbol: string;
+  name: string;
+  watch_reason: string;
+  trigger_conditions: string[];
+  upgrade_condition?: string;
+  status: NextTradePlanItemStatus;
+  notes?: string;
+}
+
+export interface NextTradePlanPositionNote {
+  symbol: string;
+  name: string;
+  plan_id?: string;
+  action_plan: string;
+  key_levels?: string[];
+  notes?: string;
+}
+
+export interface NextTradePlan {
+  id: string;
+  date: string;
+  market_view: string;
+  max_total_position?: number;
+  focus_themes: string[];
+  no_trade_rules: string[];
+  entries: NextTradePlanEntry[];
+  watchlist: NextTradePlanWatchItem[];
+  position_notes: NextTradePlanPositionNote[];
+  source: string;
+  locked: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NextTradePlanUpsertRequest {
+  date: string;
+  market_view?: string;
+  max_total_position?: number;
+  focus_themes?: string[];
+  no_trade_rules?: string[];
+  entries?: NextTradePlanEntry[];
+  watchlist?: NextTradePlanWatchItem[];
+  position_notes?: NextTradePlanPositionNote[];
+  source?: string;
+  locked?: boolean;
 }
 
 /* ─────────────────────────────────────────────

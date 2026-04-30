@@ -4,7 +4,7 @@ import type {
   BaselineInput, BaselineSnapshot, BaselineRelation, FutureWatchItem,
   TradeOperation, OperationEvaluation, DailyReviewSummary,
   PeriodReview, PeriodType, ReviewJournal, TradingPermissionCard,
-  PositionPlan, PretradeReview,
+  PositionPlan, PretradeReview, NextTradePlan,
   ChatSettings, ChatThread, ChatMessage, ChatProposal, ChatProposalStatus,
 } from '../models/types';
 
@@ -25,6 +25,7 @@ interface DB {
   permission_cards: TradingPermissionCard[];
   position_plans: PositionPlan[];
   pretrade_reviews: PretradeReview[];
+  next_trade_plans: NextTradePlan[];
   chat_settings?: ChatSettings;
   chat_threads: ChatThread[];
   chat_messages: ChatMessage[];
@@ -36,6 +37,7 @@ const EMPTY_DB: DB = {
   trade_operations: [], operation_evaluations: [], daily_reviews: [],
   weekly_reviews: [], monthly_reviews: [], review_journals: [],
   permission_cards: [], position_plans: [], pretrade_reviews: [],
+  next_trade_plans: [],
   chat_threads: [], chat_messages: [], chat_proposals: [],
 };
 
@@ -564,6 +566,69 @@ export function deletePretradeReview(id: string): boolean {
   db.pretrade_reviews = db.pretrade_reviews.filter((r) => r.id !== id);
   save(db);
   return db.pretrade_reviews.length < before;
+}
+
+// ── Next Trade Plans ───────────────────────────────────────
+/**
+ * 覆盖语义：每日一张下一交易日计划（按 date 唯一）。
+ * locked=true 时拒绝覆盖，除非 force=true。
+ */
+export function upsertNextTradePlan(
+  plan: NextTradePlan,
+  opts: { force?: boolean } = {},
+): { plan: NextTradePlan; locked_skipped: boolean } {
+  const db = load();
+  const idx = db.next_trade_plans.findIndex((p) => p.date === plan.date);
+  if (idx >= 0) {
+    const old = db.next_trade_plans[idx];
+    if (old.locked && !opts.force) {
+      return { plan: old, locked_skipped: true };
+    }
+    const merged: NextTradePlan = {
+      ...plan,
+      id: old.id,
+      created_at: old.created_at,
+      updated_at: new Date().toISOString(),
+    };
+    db.next_trade_plans[idx] = merged;
+    save(db);
+    return { plan: merged, locked_skipped: false };
+  }
+  db.next_trade_plans.push(plan);
+  save(db);
+  return { plan, locked_skipped: false };
+}
+
+export function getNextTradePlan(date: string): NextTradePlan | undefined {
+  return load().next_trade_plans.find((p) => p.date === date);
+}
+
+export function getNextTradePlansByRange(start: string, end: string): NextTradePlan[] {
+  return load().next_trade_plans
+    .filter((p) => p.date >= start && p.date <= end)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function getAllNextTradePlans(): NextTradePlan[] {
+  return [...load().next_trade_plans].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function deleteNextTradePlan(date: string): boolean {
+  const db = load();
+  const before = db.next_trade_plans.length;
+  db.next_trade_plans = db.next_trade_plans.filter((p) => p.date !== date);
+  save(db);
+  return db.next_trade_plans.length < before;
+}
+
+export function setNextTradePlanLock(date: string, locked: boolean): NextTradePlan | undefined {
+  const db = load();
+  const plan = db.next_trade_plans.find((p) => p.date === date);
+  if (!plan) return undefined;
+  plan.locked = locked;
+  plan.updated_at = new Date().toISOString();
+  save(db);
+  return plan;
 }
 
 // ── Chat Settings / Threads / Messages ────────────────────
