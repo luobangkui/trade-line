@@ -5,7 +5,10 @@ description: >-
   (1) 同步市场客观基线；(2) 记录交易操作并自动评估；
   (3) 自动聚合日/周/月复盘 + 历史模式洞察；(4) 写入独立复盘日志报告；
   (5) 在编辑覆盖 / 重新聚合 / 清空重推 / 单条删除多接口间正确选择；
-  (6) 写入「明日权限卡」把复盘转成事前刹车（状态/最大仓位/禁止动作）。
+  (6) 写入「明日权限卡」把复盘转成事前刹车（状态/最大仓位/禁止动作）；
+  (7) 盘中买入预审：拉外部行情/历史走势并检查交易权限，输出允许/拒绝/等待；
+  (8) 管理持仓计划卡和违规检测，把手动交易纳入行为约束闭环；
+  (9) 内置聊天通道（OpenAI 兼容）+ 只读工具，agent 可在面板里直接调内部 API / 行情 / skill 文档。
   详细 SOP 与接口手册按需读取 skill/ 子目录对应文件。
   BASE_URL 默认生产地址 http://vzil1451410.bohrium.tech:50001。
 ---
@@ -54,6 +57,10 @@ description: >-
         │  permission (明日权限卡)                        │
         │    每日一张：状态/最大仓位/允许模式/禁止动作    │
         │    Agent 综合上述三层数据推理生成（事前刹车）   │
+        │  pretrade (盘中买入预审)                        │
+        │    外部行情 + 历史走势 + 权限卡 → 允许/拒绝/等待 │
+        │  position-plan / violations                     │
+        │    逐票明日动作 + 盘后违规检测                   │
         └────────────────────────────────────────────────┘
 ```
 
@@ -101,6 +108,21 @@ description: >-
 │   └─ 删除                    → DELETE /api/permission/:date
 │      详情：skill/api-permission.md / skill/sop-permission.md
 │
+├─ 做"盘中买入预审"（下单前闸门 — 不自动下单）
+│   ├─ 查今日权限卡            → GET /api/permission/today 或 /api/permission/:date
+│   ├─ 查近期复盘/操作          → GET /api/review/daily + /api/review/operations
+│   ├─ 查市场基线              → GET /api/baseline/snapshot?date=
+│   ├─ 拉外部行情/历史走势      → 东方财富/同花顺 iFinD 等数据源
+│   ├─ 输出 REJECT / WAIT / ALLOW_SMALL / ALLOW
+│   └─ 记录预审结果            → POST /api/pretrade
+│      详情：skill/sop-pretrade.md / skill/api-behavior.md
+│
+├─ 管理"持仓计划 / 违规检测"（手动交易约束层）
+│   ├─ 写逐票持仓计划          → POST /api/position-plan 或 /batch
+│   ├─ 查某日持仓计划          → GET  /api/position-plan?date=
+│   └─ 查某日违规检测          → GET  /api/violations?date=
+│      详情：skill/api-behavior.md
+│
 └─ 查询/读取
     ├─ 某日全景                → GET /api/baseline/snapshot?date= + GET /api/review/daily?date=
     ├─ 时间区间                → GET /api/baseline/timeline?start=&end=
@@ -125,6 +147,9 @@ description: >-
 | 做**周复盘**（周聚合 + 周记 + 历史对比） | [`skill/sop-weekly.md`](./skill/sop-weekly.md) → 必要时 [`skill/api-period.md`](./skill/api-period.md) · [`skill/api-journal.md`](./skill/api-journal.md) |
 | 做**月复盘**（月度主题 + 月报 + playbook） | [`skill/sop-monthly.md`](./skill/sop-monthly.md) → 必要时 [`skill/api-period.md`](./skill/api-period.md) · [`skill/api-journal.md`](./skill/api-journal.md) |
 | **生成「明日权限卡」**（事前刹车 — 推荐每日跑一次） | [`skill/sop-permission.md`](./skill/sop-permission.md) → 必要时 [`skill/api-permission.md`](./skill/api-permission.md) |
+| **盘中买入预审**（买入/加仓/回补前检查权限 + 外部行情） | [`skill/sop-pretrade.md`](./skill/sop-pretrade.md) → 必要时 [`skill/api-behavior.md`](./skill/api-behavior.md) · [`skill/api-permission.md`](./skill/api-permission.md) · [`skill/api-baseline.md`](./skill/api-baseline.md) |
+| 写**持仓计划卡 / 查违规检测**（逐票明日动作 + 盘后违规识别） | [`skill/api-behavior.md`](./skill/api-behavior.md) |
+| **配置 / 调用内置对话**（OpenAI 兼容 + 只读工具，盘中可直接问 agent） | [`skill/api-chat.md`](./skill/api-chat.md) |
 | **纠错 / 重置**（agent 写错想推倒重来） | [`skill/sop-fixup.md`](./skill/sop-fixup.md) |
 | 同步**客观市场数据**（情绪/事件/快照/未来事件） | [`skill/api-baseline.md`](./skill/api-baseline.md) |
 | 写**操作 + 评估**（trade operation / evaluation） | [`skill/api-review.md`](./skill/api-review.md) |
@@ -153,6 +178,9 @@ description: >-
 - [ ] 是否避免了重复写入（用 GET 先确认 / 用 PATCH 而非新建）
 - [ ] 长文 journal 是否有 status=final（草稿请用 draft）
 - [ ] 涉及金额/价格的数字是否准确（不要捏造）
+- [ ] 盘中预审是否先检查今日权限卡，并输出明确的 REJECT / WAIT / ALLOW_SMALL / ALLOW
+- [ ] 盘后是否调用 `/api/violations?date=` 检查系统外交易
+- [ ] 次日是否为持仓生成 `/api/position-plan` 逐票动作约束
 - [ ] 远程调用是否带 `--noproxy '*'`（在沙箱内部）
 
 ---

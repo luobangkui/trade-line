@@ -466,3 +466,241 @@ export interface TradingPermissionCardUpsertRequest {
   source?: string;
   locked?: boolean;
 }
+
+/* ─────────────────────────────────────────────
+ * 持仓计划卡 (Position Plan)
+ * 每日逐票定义明日唯一允许动作，作为盘中执行约束
+ * ───────────────────────────────────────────── */
+
+export type PositionPlanCategory =
+  | 'hard_failed'
+  | 'conditional_failed'
+  | 'positive_feedback'
+  | 'watch'
+  | 'defensive'
+  | 'closed';
+
+export type PositionPlanAction =
+  | 'sell_only'
+  | 'reduce_only'
+  | 'hold_or_reduce'
+  | 'hold_only'
+  | 'observe_only'
+  | 'no_action';
+
+export interface PositionPlan {
+  id: string;
+  date: string;
+  symbol: string;
+  name: string;
+  quantity?: number;
+  cost_price?: number;
+  last_price?: number;
+  market_value?: number;
+  unrealized_pnl?: number;
+  position_ratio?: number;
+  category: PositionPlanCategory;
+  allowed_action: PositionPlanAction;
+  invalidation_price?: number;
+  rebound_reduce_price?: number;
+  forbidden_actions: string[];
+  rationale: string;
+  source: string;
+  locked: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PositionPlanUpsertRequest {
+  date: string;
+  symbol: string;
+  name: string;
+  quantity?: number;
+  cost_price?: number;
+  last_price?: number;
+  market_value?: number;
+  unrealized_pnl?: number;
+  position_ratio?: number;
+  category: PositionPlanCategory;
+  allowed_action: PositionPlanAction;
+  invalidation_price?: number;
+  rebound_reduce_price?: number;
+  forbidden_actions?: string[];
+  rationale?: string;
+  source?: string;
+  locked?: boolean;
+}
+
+/* ─────────────────────────────────────────────
+ * 盘中买入预审 (Pretrade Review)
+ * 不下单，只记录用户意图、检查结论和必须等待/禁止条件
+ * ───────────────────────────────────────────── */
+
+export type PretradeAction = 'buy' | 'add' | 'rebuy' | 'switch';
+export type PretradeVerdict = 'REJECT' | 'WAIT' | 'ALLOW_SMALL' | 'ALLOW';
+
+export interface PretradeReview {
+  id: string;
+  date: string;
+  timestamp: string;
+  symbol: string;
+  name: string;
+  action: PretradeAction;
+  planned_quantity?: number;
+  planned_amount?: number;
+  planned_price?: number;
+  mode: string;
+  rationale: string;
+  exit_condition: string;
+  current_position_note?: string;
+  verdict: PretradeVerdict;
+  max_allowed_amount?: number;
+  reasons: string[];
+  wait_conditions: string[];
+  forbidden_actions: string[];
+  checked_permission_date?: string;
+  checked_permission_status?: PermissionStatus;
+  linked_position_plan_id?: string;
+  market_snapshot?: Record<string, unknown>;
+  source: string;
+  created_at: string;
+}
+
+export interface PretradeReviewCreateRequest {
+  date: string;
+  timestamp?: string;
+  symbol: string;
+  name: string;
+  action: PretradeAction;
+  planned_quantity?: number;
+  planned_amount?: number;
+  planned_price?: number;
+  mode: string;
+  rationale: string;
+  exit_condition: string;
+  current_position_note?: string;
+  verdict: PretradeVerdict;
+  max_allowed_amount?: number;
+  reasons?: string[];
+  wait_conditions?: string[];
+  forbidden_actions?: string[];
+  checked_permission_date?: string;
+  checked_permission_status?: PermissionStatus;
+  linked_position_plan_id?: string;
+  market_snapshot?: Record<string, unknown>;
+  source?: string;
+}
+
+/* ─────────────────────────────────────────────
+ * 违规检测 (Violation Detection)
+ * 从交易记录/权限卡/预审记录推导，只读输出
+ * ───────────────────────────────────────────── */
+
+export type ViolationSeverity = 'info' | 'warning' | 'critical';
+
+export interface TradeViolation {
+  id: string;
+  date: string;
+  rule_id: string;
+  severity: ViolationSeverity;
+  title: string;
+  detail: string;
+  related_operation_ids: string[];
+  suggested_penalty: string;
+}
+
+/* ─────────────────────────────────────────────
+ * 内置聊天 (Chat) — Phase A：基础通道 + 只读工具
+ * ───────────────────────────────────────────── */
+
+export type ChatAuthStyle = 'bearer' | 'header';
+
+export interface ChatSettings {
+  base_url: string;
+  api_key: string;
+  model: string;
+  temperature: number;
+  system_prompt?: string;
+  enable_tools: boolean;
+  max_tool_iterations: number;
+  request_timeout_ms: number;
+  auth_style?: ChatAuthStyle;
+  auth_header_name?: string;
+  updated_at: string;
+}
+
+export interface ChatThread {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+}
+
+export type ChatRole = 'system' | 'user' | 'assistant' | 'tool';
+
+export interface ChatToolCall {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
+export interface ChatAttachment {
+  type: 'image';
+  path: string;       // 相对 data/uploads 的相对路径，如 "thread_xxx/msg_yyy_0.png"
+  mime: string;       // image/png | image/jpeg | image/webp
+  size: number;       // 字节
+  width?: number;
+  height?: number;
+  source?: string;    // 'paste' | 'drop' | 'pick'，仅供参考
+}
+
+export interface ChatMessage {
+  id: string;
+  thread_id: string;
+  role: ChatRole;
+  content: string;
+  tool_calls?: ChatToolCall[];
+  tool_call_id?: string;
+  tool_name?: string;
+  attachments?: ChatAttachment[];
+  created_at: string;
+  metadata?: Record<string, unknown>;
+}
+
+/* ─────────────────────────────────────────────
+ * 写入工具的提案 (ChatProposal)
+ * agent 调用 propose_* 工具时，先生成一条 pending proposal，
+ * 由用户在 UI 上点击「应用」/「取消」后才真正落库。
+ * ───────────────────────────────────────────── */
+
+export type ChatProposalStatus = 'pending' | 'applied' | 'cancelled' | 'failed' | 'expired';
+export type ChatProposalRisk = 'low' | 'medium' | 'high';
+
+export interface ChatProposal {
+  id: string;
+  thread_id: string;
+  /** 触发该提案的 assistant message id（即 LLM 调用 propose_* 工具的那条 message） */
+  message_id?: string;
+  /** 触发该提案的 tool_call id（OpenAI tool_call_id） */
+  tool_call_id?: string;
+  /** propose_* 工具名 */
+  tool_name: string;
+  /** 解析后的参数对象 */
+  args: Record<string, unknown>;
+  /** 一句话差异描述（用于卡片标题），由 preview() 生成 */
+  summary: string;
+  /** 影响目标（人类可读，用于审计列表展示） */
+  target?: string;
+  risk: ChatProposalRisk;
+  status: ChatProposalStatus;
+  /** 写前的旧值快照（覆盖类必有；新增类可为 null） */
+  snapshot_before?: unknown;
+  /** apply 之后的真实写入结果（成功后填） */
+  result?: unknown;
+  error?: string;
+  created_at: string;
+  decided_at?: string;
+  /** 谁应用/取消的：当前总是 'user' */
+  decided_by?: string;
+}

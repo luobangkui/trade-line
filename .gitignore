@@ -3,3 +3,8 @@ dist/
 data/
 *.log
 .env
+
+# planning-with-files skill 临时笔记
+task_plan.md
+findings.md
+progress.md

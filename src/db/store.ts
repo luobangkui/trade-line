@@ -4,6 +4,8 @@ import type {
   BaselineInput, BaselineSnapshot, BaselineRelation, FutureWatchItem,
   TradeOperation, OperationEvaluation, DailyReviewSummary,
   PeriodReview, PeriodType, ReviewJournal, TradingPermissionCard,
+  PositionPlan, PretradeReview,
+  ChatSettings, ChatThread, ChatMessage, ChatProposal, ChatProposalStatus,
 } from '../models/types';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
@@ -21,13 +23,20 @@ interface DB {
   monthly_reviews: PeriodReview[];
   review_journals: ReviewJournal[];
   permission_cards: TradingPermissionCard[];
+  position_plans: PositionPlan[];
+  pretrade_reviews: PretradeReview[];
+  chat_settings?: ChatSettings;
+  chat_threads: ChatThread[];
+  chat_messages: ChatMessage[];
+  chat_proposals: ChatProposal[];
 }
 
 const EMPTY_DB: DB = {
   inputs: [], snapshots: [], relations: [], future_watchlist: [],
   trade_operations: [], operation_evaluations: [], daily_reviews: [],
   weekly_reviews: [], monthly_reviews: [], review_journals: [],
-  permission_cards: [],
+  permission_cards: [], position_plans: [], pretrade_reviews: [],
+  chat_threads: [], chat_messages: [], chat_proposals: [],
 };
 
 function load(): DB {
@@ -188,6 +197,36 @@ export function deleteOperation(id: string): boolean {
   db.operation_evaluations = db.operation_evaluations.filter((e) => e.operation_id !== id);
   save(db);
   return db.trade_operations.length < before;
+}
+
+/**
+ * 局部更新一笔交易（仅修正手敲错的字段）。
+ * 不允许通过此接口改：id / time_key / symbol / name / created_at / created_by /
+ * linked_baseline_*（自动关联）。如需改这些字段请先 delete 再 create。
+ */
+export function updateOperation(
+  id: string,
+  patch: Partial<TradeOperation>,
+): TradeOperation | undefined {
+  const db = load();
+  const idx = db.trade_operations.findIndex((o) => o.id === id);
+  if (idx < 0) return undefined;
+  const old = db.trade_operations[idx];
+  const merged: TradeOperation = {
+    ...old,
+    ...patch,
+    id: old.id,
+    time_key: old.time_key,
+    symbol: old.symbol,
+    name: old.name,
+    created_at: old.created_at,
+    created_by: old.created_by,
+    linked_baseline_stage: old.linked_baseline_stage,
+    linked_baseline_emotion: old.linked_baseline_emotion,
+  };
+  db.trade_operations[idx] = merged;
+  save(db);
+  return merged;
 }
 
 // ── Operation Evaluations ─────────────────────────────────
@@ -429,3 +468,235 @@ export function setPermissionCardLock(date: string, locked: boolean): TradingPer
   save(db);
   return card;
 }
+
+// ── Position Plans ────────────────────────────────────────
+/**
+ * 覆盖语义：同一 date + symbol 只有一张持仓计划卡。
+ * locked=true 时拒绝覆盖，除非 force=true。
+ */
+export function upsertPositionPlan(
+  plan: PositionPlan,
+  opts: { force?: boolean } = {},
+): { plan: PositionPlan; locked_skipped: boolean } {
+  const db = load();
+  const idx = db.position_plans.findIndex((p) => p.date === plan.date && p.symbol === plan.symbol);
+  if (idx >= 0) {
+    const old = db.position_plans[idx];
+    if (old.locked && !opts.force) {
+      return { plan: old, locked_skipped: true };
+    }
+    const merged: PositionPlan = {
+      ...plan,
+      id: old.id,
+      created_at: old.created_at,
+      updated_at: new Date().toISOString(),
+    };
+    db.position_plans[idx] = merged;
+    save(db);
+    return { plan: merged, locked_skipped: false };
+  }
+  db.position_plans.push(plan);
+  save(db);
+  return { plan, locked_skipped: false };
+}
+
+export function getPositionPlan(date: string, symbol: string): PositionPlan | undefined {
+  return load().position_plans.find((p) => p.date === date && p.symbol === symbol);
+}
+
+export function getPositionPlansByDate(date: string): PositionPlan[] {
+  return load().position_plans
+    .filter((p) => p.date === date)
+    .sort((a, b) => a.symbol.localeCompare(b.symbol));
+}
+
+export function getPositionPlansByRange(start: string, end: string): PositionPlan[] {
+  return load().position_plans
+    .filter((p) => p.date >= start && p.date <= end)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.symbol.localeCompare(b.symbol));
+}
+
+export function deletePositionPlan(date: string, symbol: string): boolean {
+  const db = load();
+  const before = db.position_plans.length;
+  db.position_plans = db.position_plans.filter((p) => !(p.date === date && p.symbol === symbol));
+  save(db);
+  return db.position_plans.length < before;
+}
+
+export function setPositionPlanLock(date: string, symbol: string, locked: boolean): PositionPlan | undefined {
+  const db = load();
+  const plan = db.position_plans.find((p) => p.date === date && p.symbol === symbol);
+  if (!plan) return undefined;
+  plan.locked = locked;
+  plan.updated_at = new Date().toISOString();
+  save(db);
+  return plan;
+}
+
+// ── Pretrade Reviews ──────────────────────────────────────
+export function insertPretradeReview(review: PretradeReview): PretradeReview {
+  const db = load();
+  db.pretrade_reviews.push(review);
+  save(db);
+  return review;
+}
+
+export function getPretradeReview(id: string): PretradeReview | undefined {
+  return load().pretrade_reviews.find((r) => r.id === id);
+}
+
+export function getPretradeReviewsByDate(date: string): PretradeReview[] {
+  return load().pretrade_reviews
+    .filter((r) => r.date === date)
+    .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+}
+
+export function getPretradeReviewsByRange(start: string, end: string): PretradeReview[] {
+  return load().pretrade_reviews
+    .filter((r) => r.date >= start && r.date <= end)
+    .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+}
+
+export function deletePretradeReview(id: string): boolean {
+  const db = load();
+  const before = db.pretrade_reviews.length;
+  db.pretrade_reviews = db.pretrade_reviews.filter((r) => r.id !== id);
+  save(db);
+  return db.pretrade_reviews.length < before;
+}
+
+// ── Chat Settings / Threads / Messages ────────────────────
+export function getChatSettings(): ChatSettings | undefined {
+  return load().chat_settings;
+}
+
+export function upsertChatSettings(settings: ChatSettings): ChatSettings {
+  const db = load();
+  db.chat_settings = settings;
+  save(db);
+  return settings;
+}
+
+export function deleteChatSettings(): boolean {
+  const db = load();
+  if (!db.chat_settings) return false;
+  db.chat_settings = undefined;
+  save(db);
+  return true;
+}
+
+export function listChatThreads(): ChatThread[] {
+  return [...load().chat_threads].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+}
+
+export function getChatThread(id: string): ChatThread | undefined {
+  return load().chat_threads.find((t) => t.id === id);
+}
+
+export function insertChatThread(thread: ChatThread): ChatThread {
+  const db = load();
+  db.chat_threads.push(thread);
+  save(db);
+  return thread;
+}
+
+export function updateChatThread(id: string, patch: Partial<ChatThread>): ChatThread | undefined {
+  const db = load();
+  const idx = db.chat_threads.findIndex((t) => t.id === id);
+  if (idx < 0) return undefined;
+  const merged: ChatThread = {
+    ...db.chat_threads[idx],
+    ...patch,
+    id: db.chat_threads[idx].id,
+    created_at: db.chat_threads[idx].created_at,
+    updated_at: new Date().toISOString(),
+  };
+  db.chat_threads[idx] = merged;
+  save(db);
+  return merged;
+}
+
+export function deleteChatThread(id: string): boolean {
+  const db = load();
+  const before = db.chat_threads.length;
+  db.chat_threads = db.chat_threads.filter((t) => t.id !== id);
+  db.chat_messages = db.chat_messages.filter((m) => m.thread_id !== id);
+  save(db);
+  return db.chat_threads.length < before;
+}
+
+export function listChatMessages(threadId: string): ChatMessage[] {
+  return load().chat_messages
+    .filter((m) => m.thread_id === threadId)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at));
+}
+
+export function insertChatMessage(message: ChatMessage): ChatMessage {
+  const db = load();
+  db.chat_messages.push(message);
+  const tIdx = db.chat_threads.findIndex((t) => t.id === message.thread_id);
+  if (tIdx >= 0) {
+    db.chat_threads[tIdx].message_count = db.chat_messages.filter((m) => m.thread_id === message.thread_id).length;
+    db.chat_threads[tIdx].updated_at = new Date().toISOString();
+  }
+  save(db);
+  return message;
+}
+
+// ── Chat Proposals (写入提案) ─────────────────────────────
+export function insertChatProposal(p: ChatProposal): ChatProposal {
+  const db = load();
+  db.chat_proposals.push(p);
+  save(db);
+  return p;
+}
+
+export function getChatProposal(id: string): ChatProposal | undefined {
+  return load().chat_proposals.find((p) => p.id === id);
+}
+
+export function listChatProposalsByThread(threadId: string): ChatProposal[] {
+  return load().chat_proposals
+    .filter((p) => p.thread_id === threadId)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+export function listPendingProposals(): ChatProposal[] {
+  return load().chat_proposals
+    .filter((p) => p.status === 'pending')
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+export function updateChatProposal(
+  id: string,
+  patch: Partial<Omit<ChatProposal, 'id' | 'thread_id' | 'tool_name' | 'created_at'>>,
+): ChatProposal | undefined {
+  const db = load();
+  const idx = db.chat_proposals.findIndex((p) => p.id === id);
+  if (idx < 0) return undefined;
+  db.chat_proposals[idx] = { ...db.chat_proposals[idx], ...patch };
+  save(db);
+  return db.chat_proposals[idx];
+}
+
+export function expireOldPendingProposals(maxAgeMs: number): number {
+  const db = load();
+  const now = Date.now();
+  let expired = 0;
+  for (const p of db.chat_proposals) {
+    if (p.status !== 'pending') continue;
+    const t = Date.parse(p.created_at);
+    if (Number.isFinite(t) && now - t > maxAgeMs) {
+      p.status = 'expired';
+      p.decided_at = new Date().toISOString();
+      p.decided_by = 'system:expire';
+      expired += 1;
+    }
+  }
+  if (expired) save(db);
+  return expired;
+}
+
+// 测试/便捷用：重置所有提案状态（不要在生产路由暴露）
+export function _statusForTest(_: ChatProposalStatus): never { throw new Error('not used'); }
