@@ -55,23 +55,26 @@
 
 缺少 `mode` 或 `exit_condition` 时，不应写 `ALLOW/ALLOW_SMALL`。
 
-## 3. 违规检测 `/api/violations`
+## 3. 违规/风险信号检测 `/api/violations`
 
-只读检测，不自动改权限卡。
+只读检测，不自动改权限卡。`critical` 是硬纪律违规；`warning` / `info` 是需要复盘解释的风险信号，不应直接定罪。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/violations?date=YYYY-MM-DD` | 检测某日违规 |
+| GET | `/api/violations?date=YYYY-MM-DD` | 检测某日硬违规与风险信号 |
 
 当前规则：
 
-- `missing_permission_card`：无权限卡仍买入
-- `protect_day_new_buy`：protect 且禁新开时买入
-- `morning_new_buy`：命中 10:30 前买入
-- `sell_then_buy_10m`：卖出后 10 分钟内买入
-- `second_buy_unvalidated`：同标的多次买入
-- `loss_position_add`：亏损票补仓/摊低倾向
-- `multi_mode_day`：单日多模式混做
+- `missing_permission_card`：无权限卡仍买入（critical）
+- `protect_day_new_buy`：protect 且禁新开时买入（critical）
+- `morning_new_buy`：权限卡明确禁止早盘/10:30 前买入，仍发生买入（critical）
+- `morning_buy_risk_signal`：权限卡只提到早盘/10:30 条件，但不是明确禁令（warning）
+- `sell_then_buy_10m`：跨标的卖出后 10 分钟内买入（critical）
+- `same_symbol_sell_then_buy_10m`：同票卖出后 10 分钟内买回，需区分纠错/倒T（warning）
+- `second_buy_unvalidated`：同标的多次买入，且缺少逐笔有效预审（warning）
+- `loss_position_add`：失败仓/只减不加/禁补仓条件下仍加仓，或文本明确摊低（critical）
+- `add_position_risk_signal`：加仓但未命中失败仓/禁补证据，仅作复盘信号（info）
+- `multi_mode_day`：单日多模式混做（info）
 - `missing_pretrade_review`：买入前缺少有效预审
 
 ## 使用建议

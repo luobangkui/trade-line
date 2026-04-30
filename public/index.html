@@ -3287,8 +3287,8 @@ setInterval(loadPermissionChip, 30000);
   const ATTACH_BYTES_LIMIT = 5 * 1024 * 1024;
 
   const SLASH_COMMANDS = [
-    { cmd: '/today',       desc: '拉今日全景：baseline+permission+持仓计划+违规',
-      template: '调用 get_today_context 看今天 ${TODAY}，告诉我市场基线、permission、持仓计划、违规。' },
+    { cmd: '/today',       desc: '拉今日全景：baseline+permission+持仓计划+违规/风险信号',
+      template: '调用 get_today_context 看今天 ${TODAY}，告诉我市场基线、permission、持仓计划、硬违规和风险信号。' },
     { cmd: '/quote',       desc: '拉个股最新报价',
       args: '<code>',      template: '调用 fetch_eastmoney_quote 拉 {code} 最新报价，再用一句话总结涨跌。' },
     { cmd: '/kline',       desc: '拉个股历史 K 线',
@@ -3300,8 +3300,8 @@ setInterval(loadPermissionChip, 30000);
       args: '[date=明天]', template: '调用 get_permission_card date=${TOMORROW}，告诉我状态/最大仓位/允许动作/禁止动作/止损线。' },
     { cmd: '/plan',        desc: '查持仓计划',
       args: '[date=明天]', template: '调用 get_position_plans date=${TOMORROW}，列出所有持仓计划卡。' },
-    { cmd: '/violations',  desc: '查违规',
-      args: '[date=今天]', template: '调用 get_violations date=${TODAY}，列出所有违规和建议惩罚。' },
+    { cmd: '/violations',  desc: '查违规/风险信号',
+      args: '[date=今天]', template: '调用 get_violations date=${TODAY}，按 critical / warning / info 分组列出硬违规、待复核信号和建议动作。' },
     { cmd: '/weekly',      desc: '本周聚合复盘 + 历史模式洞察',
       args: '[period_key]', template: '调用 get_weekly_review period_key=${WEEK_KEY}，再调 get_weekly_insights lookback=4，告诉我重复犯的错。' },
     { cmd: '/indices',     desc: '主要指数最新报价',
@@ -3523,7 +3523,7 @@ setInterval(loadPermissionChip, 30000);
           可以问：<br>
           • 今天的市场基线 / permission / 持仓计划是什么？<br>
           • 现在能不能加仓 002317？<br>
-          • 给我看本周的违规和模式洞察。<br>
+          • 给我看本周的硬违规、风险信号和模式洞察。<br>
           所有工具均为只读，不会代你下单。
         </div>`;
       body.appendChild(empty);
