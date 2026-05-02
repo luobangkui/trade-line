@@ -2191,7 +2191,7 @@ window.removeTacticImportImage = function(idx) {
   renderTacticImportPreview();
 };
 
-async function uploadImagesForTactic(tacticId, filesOrItems) {
+async function uploadTacticImagesRequest(tacticId, filesOrItems) {
   const files = Array.from(filesOrItems || []);
   if (!files.length) return;
   const items = [];
@@ -2215,7 +2215,7 @@ async function uploadImagesForTactic(tacticId, filesOrItems) {
 
 window.uploadImagesForTactic = async function(tacticId, files) {
   try {
-    await uploadImagesForTactic(tacticId, files);
+    await uploadTacticImagesRequest(tacticId, files);
     await loadTimeline();
     await selectTactic(tacticId);
   } catch (e) {
@@ -2242,7 +2242,7 @@ window.handleTacticPaste = async function(ev) {
   }
   if (viewMode !== 'tactics' || !selectedTacticId) return;
   try {
-    await uploadImagesForTactic(selectedTacticId, files);
+    await uploadTacticImagesRequest(selectedTacticId, files);
     await loadTimeline();
     await selectTactic(selectedTacticId);
     alert('已追加粘贴的示意图片');
@@ -2265,7 +2265,7 @@ document.addEventListener('paste', (ev) => {
     return;
   }
   if (isTextEditingTarget(ev.target)) return;
-  if (ev.target instanceof Element && ev.target.closest('#detail')) {
+  if (ev.target instanceof Element && ev.target.closest('#detail, .tactic-detail-pane')) {
     window.handleTacticPaste(ev);
   }
 });
@@ -2293,7 +2293,7 @@ window.saveTacticImport = async function() {
     if (!res.ok) throw new Error(data.error || '导入失败');
     const first = data.imported?.[0];
     if (first && tacticImportImages.length) {
-      await uploadImagesForTactic(first.id, tacticImportImages);
+      await uploadTacticImagesRequest(first.id, tacticImportImages);
     }
     closeTacticImportModal();
     await loadTimeline();
