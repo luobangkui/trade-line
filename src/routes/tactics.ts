@@ -4,6 +4,7 @@ import {
 } from '../db/store';
 import { parseTacticImportRequest } from '../services/tactic-importer';
 import { matchPretradeTactics } from '../services/tactic-matcher';
+import { saveImage, MAX_BYTES_PER_REQUEST } from '../services/chat-uploads';
 import type { TacticImportRequest, TacticMatchIntent, TacticStatus } from '../models/types';
 
 const router = Router();
@@ -47,6 +48,47 @@ router.post('/match', (req: Request, res: Response) => {
     return res.json({ result });
   } catch (e: any) {
     return res.status(400).json({ error: e?.message ?? 'match failed' });
+  }
+});
+
+router.post('/:id/images', (req: Request, res: Response) => {
+  try {
+    const tactic = getTactic(req.params.id);
+    if (!tactic) return res.status(404).json({ error: '战法不存在' });
+    const items = Array.isArray(req.body?.items) ? req.body.items : [req.body];
+    if (!items.length) return res.status(400).json({ error: 'items 必填' });
+
+    let totalBytes = 0;
+    const saved = [];
+    for (const it of items) {
+      const mime = String(it.mime ?? '');
+      const raw = String(it.base64 ?? '');
+      const base64 = raw.includes(',') ? raw.split(',').pop() ?? '' : raw;
+      if (!mime || !base64) return res.status(400).json({ error: '每个 item 必须包含 mime/base64' });
+      totalBytes += Math.floor(base64.length * 3 / 4);
+      if (totalBytes > MAX_BYTES_PER_REQUEST) {
+        return res.status(413).json({ error: `本次上传总和过大：${totalBytes} > ${MAX_BYTES_PER_REQUEST}` });
+      }
+      const r = saveImage({
+        threadId: `tactic_${tactic.id}`,
+        mime,
+        base64,
+        width: it.width ? Number(it.width) : undefined,
+        height: it.height ? Number(it.height) : undefined,
+        source: it.source ? String(it.source) : 'tactic',
+      });
+      saved.push(r.attachment);
+    }
+
+    const updated = {
+      ...tactic,
+      illustration_images: [...(tactic.illustration_images ?? []), ...saved],
+      updated_at: new Date().toISOString(),
+    };
+    upsertTactic(updated, { overwrite: true });
+    return res.json({ success: true, images: saved, tactic: updated });
+  } catch (e: any) {
+    return res.status(400).json({ error: e?.message ?? 'image upload failed' });
   }
 });
 

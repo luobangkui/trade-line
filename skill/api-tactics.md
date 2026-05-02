@@ -47,7 +47,22 @@
 |---|---|---|
 | GET | `/api/tactics` | 查询战法列表，可带 `tag` / `status` / `include_archived=1` |
 | GET | `/api/tactics/:id` | 查询单条战法，id 可为 `id` / `name` / `alias` |
+| POST | `/api/tactics/:id/images` | 为战法追加示意图片 |
 | POST | `/api/tactics/:id/archive` | 归档战法 |
+
+### 示意图片
+
+`POST /api/tactics/:id/images` 请求：
+
+```json
+{
+  "items": [
+    { "mime": "image/png", "base64": "data:image/png;base64,...", "source": "tactic-ui" }
+  ]
+}
+```
+
+返回的图片会写入战法的 `illustration_images`，前端通过 `/uploads/<path>` 展示。
 
 ## 3. 预审匹配 `/api/tactics/match`
 

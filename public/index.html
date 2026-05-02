@@ -767,6 +767,70 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
   transition: all .15s;
 }
 .section-editor .se-add-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── 战法库 ── */
+.tactic-shell { width: 100%; min-height: 100%; padding: 22px; overflow-y: auto; }
+.tactic-toolbar {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
+}
+.tactic-toolbar h2 { font-size: 18px; color: #f8fafc; margin-right: auto; }
+.tactic-search {
+  background: var(--bg2); border: 1px solid var(--border); color: var(--text);
+  border-radius: 7px; padding: 7px 10px; font-size: 12px; width: 220px;
+}
+.tactic-btn {
+  background: var(--accent); border: 1px solid var(--accent); color: #fff;
+  border-radius: 7px; padding: 7px 12px; font-size: 12px; font-weight: 600;
+  cursor: pointer;
+}
+.tactic-btn.secondary { background: transparent; border-color: var(--border); color: #cbd5e1; }
+.tactic-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.tactic-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 13px 14px; cursor: pointer; transition: all .15s;
+}
+.tactic-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.tactic-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(59,130,246,.35); }
+.tactic-head { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.tactic-name { font-weight: 700; color: #f1f5f9; font-size: 14px; }
+.tactic-status {
+  margin-left:auto; font-size:10px; padding:1px 7px; border-radius:8px;
+  background: rgba(34,197,94,.14); color:#4ade80; border:1px solid rgba(34,197,94,.25);
+}
+.tactic-status.draft { background: rgba(234,179,8,.14); color:#facc15; border-color: rgba(234,179,8,.25); }
+.tactic-status.archived { background: rgba(71,85,105,.22); color:#94a3b8; border-color: rgba(71,85,105,.4); }
+.tactic-summary { color:#cbd5e1; font-size:12px; line-height:1.55; min-height: 36px; }
+.tactic-tags { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+.tactic-tag {
+  font-size:10px; color:#93c5fd; background:rgba(59,130,246,.12);
+  border:1px solid rgba(59,130,246,.25); border-radius:9px; padding:1px 7px;
+}
+.tactic-meta { margin-top:8px; color:#64748b; font-size:11px; display:flex; gap:8px; flex-wrap:wrap; }
+.tactic-detail-kv { background:var(--bg3); border:1px solid var(--border); border-radius:7px; padding:9px 10px; margin-bottom:10px; }
+.tactic-detail-kv .k { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px; }
+.tactic-detail-kv .v { color:#e2e8f0; font-size:12px; line-height:1.55; }
+.tactic-cond-list { padding-left:18px; margin:0; color:#cbd5e1; font-size:12px; line-height:1.65; }
+.tactic-cond-list li { margin-bottom:3px; }
+.tactic-images { display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:8px; }
+.tactic-images img {
+  width:100%; max-height:150px; object-fit:cover; border-radius:7px;
+  border:1px solid var(--border); cursor:pointer; background:var(--bg2);
+}
+.tactic-import-drop {
+  border: 1px dashed #475569; border-radius: 8px; padding: 10px;
+  color: #94a3b8; font-size: 12px; text-align: center; cursor: pointer;
+  background: rgba(15,23,42,.45);
+}
+.tactic-import-drop:hover { border-color: var(--accent); color:#bfdbfe; }
+.tactic-import-preview { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.tactic-import-preview .pic {
+  position:relative; width:86px; height:64px; border-radius:7px; overflow:hidden; border:1px solid var(--border);
+}
+.tactic-import-preview img { width:100%; height:100%; object-fit:cover; }
+.tactic-import-preview .x {
+  position:absolute; top:2px; right:2px; background:rgba(0,0,0,.68); color:#fff;
+  border-radius:50%; width:18px; height:18px; line-height:18px; text-align:center; cursor:pointer; font-size:11px;
+}
 </style>
 </head>
 <body>
@@ -783,6 +847,7 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
     <button class="active" data-view="day"   onclick="switchView('day')">📅 日复盘</button>
     <button              data-view="week"  onclick="switchView('week')">📊 周复盘</button>
     <button              data-view="month" onclick="switchView('month')">📈 月复盘</button>
+    <button              data-view="tactics" onclick="switchView('tactics')">📖 战法库</button>
   </div>
   <div class="today-badge" id="today-label">—</div>
   <div class="permission-chip" id="permission-chip" onclick="openPermissionModal()" title="点击查看明日权限卡详情">
@@ -874,6 +939,43 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
   </div>
 </div>
 
+<div id="tactic-import-modal" class="modal-mask">
+  <div class="modal-box wide">
+    <div class="modal-header">
+      <span class="modal-title">导入战法</span>
+      <button class="modal-close" onclick="closeTacticImportModal()">关闭</button>
+    </div>
+    <div class="modal-body">
+      <div style="color:var(--muted);font-size:12px">支持 JSON 或 Markdown。可同时上传示意图，导入成功后会展示在战法详情里。</div>
+      <div class="field-block">
+        <label>格式</label>
+        <select id="ti-format" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 10px">
+          <option value="auto">auto</option>
+          <option value="json">json</option>
+          <option value="markdown">markdown</option>
+        </select>
+      </div>
+      <div class="field-block">
+        <label>战法内容</label>
+        <textarea id="ti-content" style="min-height:220px" placeholder='JSON 示例：{"name":"主线启动确认","applicable_actions":["buy"],"entry_triggers":["放量突破平台"]}&#10;&#10;Markdown 示例：# 主线启动确认&#10;## 买点&#10;- 放量突破平台'></textarea>
+      </div>
+      <div class="field-block">
+        <label>示意图片</label>
+        <div class="tactic-import-drop" onclick="document.getElementById('ti-images').click()">点击选择图片，也可以多选</div>
+        <input id="ti-images" type="file" accept="image/*" multiple style="display:none" onchange="onTacticImagePick(event)">
+        <div id="ti-preview" class="tactic-import-preview"></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;color:#cbd5e1;font-size:12px">
+        <input id="ti-overwrite" type="checkbox"> 同名战法覆盖
+      </label>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-btn" onclick="closeTacticImportModal()">取消</button>
+      <button id="ti-save-btn" class="modal-btn primary" onclick="saveTacticImport()">导入</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const STAGE_META = {
   CHAOS:          { label:'混乱期',   color:'#ef4444', bg:'#450a0a' },
@@ -890,16 +992,31 @@ let selectedDate = null;
 let activeFilter = 'all';
 let allFutureEvents = [];
 
-/* ── 视角切换：日 / 周 / 月 ── */
-let viewMode = 'day';                  // 'day' | 'week' | 'month'
+/* ── 视角切换：日 / 周 / 月 / 战法 ── */
+let viewMode = 'day';                  // 'day' | 'week' | 'month' | 'tactics'
 let periodTimelineData = null;          // { type, today, periods: [...] }
 let selectedPeriodKey = null;
 let editingPeriod = null;               // 当前正在编辑的周期对象
+let tacticsData = [];
+let selectedTacticId = null;
+let tacticImportImages = [];
 
-const VIEW_LABEL = { day: '日', week: '周', month: '月' };
+const VIEW_LABEL = { day: '日', week: '周', month: '月', tactics: '战法' };
 
 async function loadTimeline() {
-  if (viewMode === 'day') {
+  if (viewMode === 'tactics') {
+    const res = await fetch('/api/tactics?include_archived=1');
+    const data = await res.json();
+    tacticsData = data.items || [];
+    renderTacticsView();
+    updateTopbar();
+    document.getElementById('loading').classList.add('hidden');
+    if (tacticsData.length) {
+      setTimeout(() => selectTactic(selectedTacticId || tacticsData[0].id), 80);
+    } else {
+      closeDetail();
+    }
+  } else if (viewMode === 'day') {
     const end = offsetDate(new Date(), 14);
     const start = offsetDate(new Date(), -45);
     const [res, fRes] = await Promise.all([
@@ -948,6 +1065,7 @@ async function switchView(mode) {
   // 清理选中态
   selectedDate = null;
   selectedPeriodKey = null;
+  selectedTacticId = null;
   document.getElementById('detail').classList.remove('open');
   document.getElementById('timeline').classList.remove('has-selection');
   document.getElementById('loading').classList.remove('hidden');
@@ -961,7 +1079,16 @@ function offsetDate(d, days) {
 }
 
 function updateTopbar() {
-  if (viewMode === 'day') {
+  if (viewMode === 'tactics') {
+    document.getElementById('today-label').textContent = '战法库';
+    document.getElementById('status-dot').style.background = '#06b6d4';
+    document.getElementById('status-text').textContent = `${tacticsData.length} 个战法 · 预审检查清单`;
+    document.getElementById('stat-stage').textContent = `${tacticsData.filter(t => t.status !== 'archived').length} 个有效`;
+    document.getElementById('stat-stage').style.color = '#06b6d4';
+    document.getElementById('stat-emotion').textContent = tacticsData.filter(t => t.illustration_images?.length).length;
+    document.getElementById('stat-risk').textContent = '含示意图战法';
+    document.getElementById('stat-pos').textContent = '可导入/查看';
+  } else if (viewMode === 'day') {
     if (!timelineData) return;
     const today = timelineData.today;
     document.getElementById('today-label').textContent = today;
@@ -1111,6 +1238,16 @@ function renderGanttSidebar() {
 
 function renderSidebar() {
   if (!timelineData) return;
+  document.getElementById('filter-list').innerHTML = `
+    <button class="filter-btn active" data-filter="all" onclick="setFilter('all',this)"><span class="filter-dot" style="background:var(--muted)"></span>全部</button>
+    <button class="filter-btn" data-filter="CHAOS" onclick="setFilter('CHAOS',this)"><span class="filter-dot" style="background:#ef4444"></span>混乱期</button>
+    <button class="filter-btn" data-filter="REPAIR_EARLY" onclick="setFilter('REPAIR_EARLY',this)"><span class="filter-dot" style="background:#f97316"></span>修复早期</button>
+    <button class="filter-btn" data-filter="REPAIR_CONFIRM" onclick="setFilter('REPAIR_CONFIRM',this)"><span class="filter-dot" style="background:#eab308"></span>修复确认</button>
+    <button class="filter-btn" data-filter="MAIN_UP" onclick="setFilter('MAIN_UP',this)"><span class="filter-dot" style="background:#22c55e"></span>主升行情</button>
+    <button class="filter-btn" data-filter="HIGH_RISK" onclick="setFilter('HIGH_RISK',this)"><span class="filter-dot" style="background:#a855f7"></span>高位风险</button>
+    <button class="filter-btn" data-filter="DISTRIBUTION" onclick="setFilter('DISTRIBUTION',this)"><span class="filter-dot" style="background:#6366f1"></span>出货期</button>
+    <button class="filter-btn" data-filter="future" onclick="setFilter('future',this)"><span class="filter-dot" style="background:#3b82f6"></span>未来节点</button>
+  `;
   const list = document.getElementById('date-list');
   list.innerHTML = '';
   [...timelineData.nodes].reverse().forEach(node => {
@@ -1144,6 +1281,143 @@ function renderPeriodSidebar() {
     el.onclick = () => selectPeriod(p.period_key);
     list.appendChild(el);
   });
+}
+
+function renderTacticsView() {
+  renderTacticsSidebar();
+  renderTacticsGrid();
+}
+
+function renderTacticsSidebar() {
+  const list = document.getElementById('date-list');
+  const tagCounts = {};
+  tacticsData.forEach(t => (t.tags || []).forEach(tag => { tagCounts[tag] = (tagCounts[tag] || 0) + 1; }));
+  const topTags = Object.entries(tagCounts).sort((a,b) => b[1] - a[1]).slice(0, 6);
+  document.getElementById('sidebar-gantt').innerHTML = topTags.length
+    ? topTags.map(([tag, n]) => `<div class="gantt-item" onclick="filterTacticsBy('${escapeHtml(tag)}')"><div class="gantt-item-header"><span class="gantt-item-title">#${escapeHtml(tag)}</span><span style="margin-left:auto;color:#64748b">${n}</span></div></div>`).join('')
+    : '<div class="gantt-empty">暂无标签</div>';
+  document.getElementById('gantt-count').style.display = tacticsData.length ? 'inline-block' : 'none';
+  document.getElementById('gantt-count').textContent = tacticsData.length;
+  document.getElementById('filter-list').innerHTML = `
+    <button class="filter-btn active" onclick="filterTacticsBy('')"><span class="filter-dot" style="background:var(--muted)"></span>全部战法</button>
+    <button class="filter-btn" onclick="filterTacticsBy('__with_image')"><span class="filter-dot" style="background:#06b6d4"></span>有示意图</button>
+    <button class="filter-btn" onclick="filterTacticsBy('__active')"><span class="filter-dot" style="background:#22c55e"></span>有效战法</button>
+  `;
+  list.innerHTML = tacticsData.length ? tacticsData.map(t => `
+    <div class="date-item${t.id === selectedTacticId ? ' selected' : ''}" data-date="${escapeHtml(t.id)}" onclick="selectTactic('${escapeHtml(t.id)}')">
+      <span class="di-dot" style="background:${t.status === 'archived' ? '#64748b' : '#06b6d4'}"></span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(t.name)}</span>
+      ${t.illustration_images?.length ? '<span style="margin-left:auto">🖼</span>' : ''}
+    </div>
+  `).join('') : '<div class="empty-hint" style="padding:16px">暂无战法</div>';
+}
+
+function renderTacticsGrid(filter = '') {
+  const wrap = document.getElementById('timeline-wrap');
+  const tl = document.getElementById('timeline');
+  tl.classList.remove('has-selection');
+  const filtered = tacticsData.filter(t => {
+    if (!filter) return true;
+    if (filter === '__with_image') return (t.illustration_images || []).length > 0;
+    if (filter === '__active') return t.status !== 'archived';
+    return (t.tags || []).includes(filter);
+  });
+  tl.innerHTML = `
+    <div class="tactic-shell">
+      <div class="tactic-toolbar">
+        <h2>战法库</h2>
+        <input class="tactic-search" id="tactic-search" placeholder="搜索名称 / 模式 / 标签" oninput="searchTactics(this.value)">
+        <button class="tactic-btn secondary" onclick="loadTimeline()">刷新</button>
+        <button class="tactic-btn" onclick="openTacticImportModal()">+ 导入战法</button>
+      </div>
+      <div id="tactic-grid" class="tactic-grid">
+        ${filtered.length ? filtered.map(renderTacticCard).join('') : '<div class="empty-hint">暂无战法。点击右上「导入战法」添加。</div>'}
+      </div>
+    </div>`;
+  wrap.scrollTo({ left: 0 });
+}
+
+function renderTacticCard(t) {
+  const img = t.illustration_images?.[0];
+  return `
+    <div class="tactic-card${t.id === selectedTacticId ? ' active' : ''}" data-id="${escapeHtml(t.id)}" data-name="${escapeHtml([t.name, ...(t.aliases||[]), ...(t.tags||[]), ...(t.allowed_modes||[])].join(' ').toLowerCase())}" onclick="selectTactic('${escapeHtml(t.id)}')">
+      <div class="tactic-head">
+        <div class="tactic-name">${escapeHtml(t.name)}</div>
+        <div class="tactic-status ${escapeHtml(t.status)}">${escapeHtml(t.status)}</div>
+      </div>
+      ${img ? `<img src="/uploads/${escapeHtml(img.path)}" style="width:100%;height:115px;object-fit:cover;border-radius:7px;border:1px solid var(--border);margin-bottom:8px" alt="">` : ''}
+      <div class="tactic-summary">${escapeHtml(t.summary || t.notes || '暂无摘要')}</div>
+      <div class="tactic-tags">${(t.tags || []).slice(0, 5).map(tag => `<span class="tactic-tag">#${escapeHtml(tag)}</span>`).join('')}</div>
+      <div class="tactic-meta">
+        <span>${(t.applicable_actions || []).join('/') || '通用'}</span>
+        <span>${(t.allowed_modes || []).slice(0,2).join(' / ') || '不限模式'}</span>
+        <span>${t.illustration_images?.length ? `${t.illustration_images.length} 图` : '无图'}</span>
+      </div>
+    </div>`;
+}
+
+function filterTacticsBy(filter) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  renderTacticsGrid(filter);
+}
+
+function searchTactics(q) {
+  const s = String(q || '').trim().toLowerCase();
+  document.querySelectorAll('.tactic-card').forEach(card => {
+    card.style.display = !s || card.dataset.name.includes(s) ? '' : 'none';
+  });
+}
+
+function selectTactic(id) {
+  selectedTacticId = id;
+  const tactic = tacticsData.find(t => t.id === id);
+  if (!tactic) return;
+  document.querySelectorAll('.date-item').forEach(el => el.classList.toggle('selected', el.dataset.date === id));
+  document.querySelectorAll('.tactic-card').forEach(el => el.classList.toggle('active', el.dataset.id === id));
+  document.getElementById('detail').classList.add('open');
+  document.getElementById('detail-date').textContent = tactic.name;
+  renderTacticDetail(tactic);
+}
+
+function conditionList(title, items, color = '#cbd5e1') {
+  if (!items?.length) return '';
+  return `<div class="tactic-detail-kv"><div class="k">${title}</div><ul class="tactic-cond-list">${items.map(c => `<li style="color:${color}">${escapeHtml(c.text || c)}</li>`).join('')}</ul></div>`;
+}
+
+function renderTacticDetail(t) {
+  const body = document.getElementById('detail-body');
+  const images = (t.illustration_images || []).length ? `
+    <div class="detail-section">
+      <div class="detail-section-title">示意图片</div>
+      <div class="tactic-images">
+        ${t.illustration_images.map(img => `<img src="/uploads/${escapeHtml(img.path)}" onclick="openImgViewer('/uploads/${escapeHtml(img.path)}')" alt="战法示意图">`).join('')}
+      </div>
+    </div>` : '';
+  body.innerHTML = `
+    ${images}
+    <div class="tactic-detail-kv"><div class="k">摘要</div><div class="v">${escapeHtml(t.summary || '暂无摘要')}</div></div>
+    <div class="tactic-detail-kv"><div class="k">适用范围</div><div class="v">
+      动作：${escapeHtml((t.applicable_actions || []).join(' / ') || '不限')}<br>
+      风控动作：${escapeHtml((t.risk_actions || []).join(' / ') || '不限')}<br>
+      模式：${escapeHtml((t.allowed_modes || []).join(' / ') || '不限')}<br>
+      权限：${escapeHtml((t.permission_statuses || []).join(' / ') || '不限')}
+    </div></div>
+    ${conditionList('前置条件', t.setup_conditions)}
+    ${conditionList('入场触发', t.entry_triggers)}
+    ${conditionList('确认信号', t.confirm_signals)}
+    ${conditionList('失效/退出', t.invalidation_conditions, '#facc15')}
+    ${conditionList('禁止条件', t.forbidden_conditions, '#f87171')}
+    ${t.position_sizing ? `<div class="tactic-detail-kv"><div class="k">仓位规则</div><div class="v">${escapeHtml(t.position_sizing)}</div></div>` : ''}
+    <div class="tactic-detail-kv"><div class="k">标签/来源</div><div class="v">
+      ${(t.tags || []).map(tag => `<span class="tactic-tag">#${escapeHtml(tag)}</span>`).join(' ')}
+      <div style="margin-top:8px;color:#94a3b8">source=${escapeHtml(t.source || 'manual')} · updated=${escapeHtml((t.updated_at || '').slice(0, 19).replace('T', ' '))}</div>
+    </div></div>
+    <div class="detail-section" style="display:flex;gap:8px">
+      <button class="detail-btn" style="flex:1" onclick="document.getElementById('tactic-detail-image-input').click()">+ 添加图片</button>
+      <button class="detail-btn" style="flex:1;background:transparent;border-color:#ef444466;color:#ef4444" onclick="archiveTacticConfirm('${escapeHtml(t.id)}')">归档</button>
+      <input id="tactic-detail-image-input" type="file" accept="image/*" multiple style="display:none" onchange="uploadImagesForTactic('${escapeHtml(t.id)}', event.target.files)">
+    </div>
+  `;
 }
 
 function renderTimeline() {
@@ -1648,10 +1922,145 @@ function expandInputList(encodedList) {
   btn.remove();
 }
 
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(reader.error || new Error('read file failed'));
+    reader.readAsDataURL(file);
+  });
+}
+
+window.openTacticImportModal = function() {
+  tacticImportImages = [];
+  document.getElementById('ti-content').value = '';
+  document.getElementById('ti-format').value = 'auto';
+  document.getElementById('ti-overwrite').checked = false;
+  renderTacticImportPreview();
+  document.getElementById('tactic-import-modal').classList.add('show');
+};
+
+window.closeTacticImportModal = function() {
+  document.getElementById('tactic-import-modal').classList.remove('show');
+};
+
+window.onTacticImagePick = async function(ev) {
+  const files = Array.from(ev.target.files || []);
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) continue;
+    const dataUrl = await fileToDataUrl(file);
+    tacticImportImages.push({ name: file.name, mime: file.type, dataUrl, size: file.size });
+  }
+  ev.target.value = '';
+  renderTacticImportPreview();
+};
+
+function renderTacticImportPreview() {
+  const el = document.getElementById('ti-preview');
+  if (!el) return;
+  el.innerHTML = tacticImportImages.map((img, idx) => `
+    <div class="pic" title="${escapeHtml(img.name)}">
+      <img src="${img.dataUrl}" alt="">
+      <span class="x" onclick="removeTacticImportImage(${idx})">×</span>
+    </div>
+  `).join('');
+}
+
+window.removeTacticImportImage = function(idx) {
+  tacticImportImages.splice(idx, 1);
+  renderTacticImportPreview();
+};
+
+async function uploadImagesForTactic(tacticId, filesOrItems) {
+  const files = Array.from(filesOrItems || []);
+  if (!files.length) return;
+  const items = [];
+  for (const file of files) {
+    const dataUrl = file.dataUrl || await fileToDataUrl(file);
+    items.push({
+      mime: file.mime || file.type,
+      base64: dataUrl,
+      source: 'tactic-ui',
+    });
+  }
+  const res = await fetch(`/api/tactics/${encodeURIComponent(tacticId)}/images`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || '图片上传失败');
+  return data;
+}
+
+window.uploadImagesForTactic = async function(tacticId, files) {
+  try {
+    await uploadImagesForTactic(tacticId, files);
+    await loadTimeline();
+    await selectTactic(tacticId);
+  } catch (e) {
+    alert('图片上传失败：' + (e.message || e));
+  }
+};
+
+window.saveTacticImport = async function() {
+  const btn = document.getElementById('ti-save-btn');
+  const content = document.getElementById('ti-content').value.trim();
+  if (!content) { alert('请先填写战法内容'); return; }
+  btn.disabled = true;
+  btn.textContent = '导入中...';
+  try {
+    const payload = {
+      format: document.getElementById('ti-format').value,
+      content,
+      source: 'ui:tactics',
+      created_by: 'user',
+      overwrite: document.getElementById('ti-overwrite').checked,
+    };
+    const res = await fetch('/api/tactics/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '导入失败');
+    const first = data.imported?.[0];
+    if (first && tacticImportImages.length) {
+      await uploadImagesForTactic(first.id, tacticImportImages);
+    }
+    closeTacticImportModal();
+    await loadTimeline();
+    if (first) await selectTactic(first.id);
+    const msg = [
+      `导入 ${data.imported?.length || 0} 个战法`,
+      data.skipped?.length ? `跳过 ${data.skipped.length} 个` : '',
+      data.warnings?.length ? `提示：${data.warnings.join('；')}` : '',
+    ].filter(Boolean).join('\n');
+    if (msg) alert(msg);
+  } catch (e) {
+    alert('导入失败：' + (e.message || e));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '导入';
+  }
+};
+
+window.archiveTacticConfirm = async function(id) {
+  const tactic = tacticsData.find(t => t.id === id);
+  if (!tactic) return;
+  if (!confirm(`确认归档战法「${tactic.name}」吗？归档后默认不参与预审匹配。`)) return;
+  const res = await fetch(`/api/tactics/${encodeURIComponent(id)}/archive`, { method: 'POST' });
+  const data = await res.json();
+  if (!res.ok) { alert(data.error || '归档失败'); return; }
+  await loadTimeline();
+  await selectTactic(id);
+};
+
 function closeDetail() {
   document.getElementById('detail').classList.remove('open');
   selectedDate = null;
   selectedPeriodKey = null;
+  selectedTacticId = null;
   document.querySelectorAll('.date-item').forEach(el => el.classList.remove('selected'));
   // 取消聚光灯
   document.getElementById('timeline').classList.remove('has-selection');

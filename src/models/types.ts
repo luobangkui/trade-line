@@ -640,6 +640,7 @@ export interface TacticDefinition {
   invalidation_conditions: TacticCondition[];
   forbidden_conditions: TacticCondition[];
   position_sizing?: string;
+  illustration_images?: ChatAttachment[];
   notes?: string;
   source: string;
   source_text?: string;
@@ -669,6 +670,7 @@ export interface TacticDefinitionCreateRequest {
   invalidation_conditions?: Array<string | Partial<TacticCondition>>;
   forbidden_conditions?: Array<string | Partial<TacticCondition>>;
   position_sizing?: string;
+  illustration_images?: ChatAttachment[];
   notes?: string;
   source?: string;
   source_text?: string;

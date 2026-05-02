@@ -96,6 +96,7 @@ export function normalizeTacticDraft(
     invalidation_conditions: normalizeConditions(draft.invalidation_conditions, 'invalidation'),
     forbidden_conditions: normalizeConditions(draft.forbidden_conditions, 'forbidden'),
     position_sizing: draft.position_sizing?.trim(),
+    illustration_images: draft.illustration_images ?? [],
     notes: draft.notes?.trim(),
     source: draft.source?.trim() || defaults.source || 'manual',
     source_text: sourceText,
