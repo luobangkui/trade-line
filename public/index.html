@@ -853,7 +853,12 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
   color: #94a3b8; font-size: 12px; text-align: center; cursor: pointer;
   background: rgba(15,23,42,.45);
 }
-.tactic-import-drop:hover { border-color: var(--accent); color:#bfdbfe; }
+.tactic-import-drop:hover, .tactic-import-drop:focus {
+  border-color: var(--accent); color:#bfdbfe; outline:none;
+}
+.tactic-paste-hint {
+  color:#94a3b8; font-size:11px; line-height:1.5; margin-top:6px;
+}
 .tactic-import-preview { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
 .tactic-import-preview .pic {
   position:relative; width:86px; height:64px; border-radius:7px; overflow:hidden; border:1px solid var(--border);
@@ -993,7 +998,10 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
       </div>
       <div class="field-block">
         <label>示意图片</label>
-        <div class="tactic-import-drop" onclick="document.getElementById('ti-images').click()">点击选择图片，也可以多选</div>
+        <div class="tactic-import-drop" tabindex="0" onclick="document.getElementById('ti-images').click()" onpaste="handleTacticPaste(event)">
+          点击选择图片，或复制截图后在这里直接粘贴
+          <div class="tactic-paste-hint">支持微信/截图工具/浏览器复制的图片；粘贴后会先进入下方预览。</div>
+        </div>
         <input id="ti-images" type="file" accept="image/*" multiple style="display:none" onchange="onTacticImagePick(event)">
         <div id="ti-preview" class="tactic-import-preview"></div>
       </div>
@@ -1494,9 +1502,13 @@ function renderTacticDetail(t) {
     </div></div>
     <div class="detail-section" style="display:flex;gap:8px">
       <button class="detail-btn" style="flex:1" onclick="document.getElementById('tactic-detail-image-input').click()">+ 添加图片</button>
+      <button class="detail-btn" style="flex:1" onclick="focusTacticPasteTarget()">粘贴图片</button>
       <button class="detail-btn" style="flex:1;background:transparent;border-color:#ef444466;color:#ef4444" onclick="archiveTacticConfirm('${escapeHtml(t.id)}')">归档</button>
       <button class="detail-btn" style="flex:1;background:#7f1d1d33;border-color:#ef4444;color:#fecaca" onclick="deleteTacticConfirm('${escapeHtml(t.id)}')">删除</button>
       <input id="tactic-detail-image-input" type="file" accept="image/*" multiple style="display:none" onchange="uploadImagesForTactic('${escapeHtml(t.id)}', event.target.files)">
+    </div>
+    <div id="tactic-paste-target" class="tactic-import-drop" tabindex="0" onpaste="handleTacticPaste(event)" style="margin-top:-2px">
+      当前战法支持直接粘贴图片：点击这里后按 Ctrl/⌘ + V，会自动追加为示意图。
     </div>
   `;
 }
@@ -2012,6 +2024,37 @@ function fileToDataUrl(file) {
   });
 }
 
+function clipboardImageFiles(ev) {
+  const items = Array.from(ev.clipboardData?.items || []);
+  return items
+    .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+    .map((item, idx) => {
+      const file = item.getAsFile();
+      if (!file) return null;
+      const ext = (file.type.split('/')[1] || 'png').replace(/[^a-z0-9]+/ig, '').toLowerCase() || 'png';
+      return new File([file], `clipboard-${Date.now()}-${idx}.${ext}`, { type: file.type });
+    })
+    .filter(Boolean);
+}
+
+async function addTacticImportImages(files, source = 'clipboard') {
+  for (const file of Array.from(files || [])) {
+    if (!file.type?.startsWith('image/')) continue;
+    const dataUrl = await fileToDataUrl(file);
+    tacticImportImages.push({ name: file.name || source, mime: file.type, dataUrl, size: file.size });
+  }
+  renderTacticImportPreview();
+}
+
+function isTacticImportModalOpen() {
+  return document.getElementById('tactic-import-modal')?.classList.contains('show');
+}
+
+function isTextEditingTarget(target) {
+  const el = target instanceof Element ? target : null;
+  return !!el?.closest('textarea,input,[contenteditable="true"]');
+}
+
 window.openTacticImportModal = function() {
   tacticImportImages = [];
   document.getElementById('ti-content').value = '';
@@ -2026,14 +2069,8 @@ window.closeTacticImportModal = function() {
 };
 
 window.onTacticImagePick = async function(ev) {
-  const files = Array.from(ev.target.files || []);
-  for (const file of files) {
-    if (!file.type.startsWith('image/')) continue;
-    const dataUrl = await fileToDataUrl(file);
-    tacticImportImages.push({ name: file.name, mime: file.type, dataUrl, size: file.size });
-  }
+  await addTacticImportImages(ev.target.files || [], 'file');
   ev.target.value = '';
-  renderTacticImportPreview();
 };
 
 function renderTacticImportPreview() {
@@ -2083,6 +2120,53 @@ window.uploadImagesForTactic = async function(tacticId, files) {
     alert('图片上传失败：' + (e.message || e));
   }
 };
+
+window.focusTacticPasteTarget = function() {
+  const el = document.getElementById('tactic-paste-target');
+  if (el) {
+    el.focus();
+    el.scrollIntoView({ block: 'nearest' });
+  }
+};
+
+window.handleTacticPaste = async function(ev) {
+  const files = clipboardImageFiles(ev);
+  if (!files.length) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  if (isTacticImportModalOpen()) {
+    await addTacticImportImages(files, 'clipboard');
+    return;
+  }
+  if (viewMode !== 'tactics' || !selectedTacticId) return;
+  try {
+    await uploadImagesForTactic(selectedTacticId, files);
+    await loadTimeline();
+    await selectTactic(selectedTacticId);
+    alert('已追加粘贴的示意图片');
+  } catch (e) {
+    alert('粘贴图片失败：' + (e.message || e));
+  }
+};
+
+document.addEventListener('paste', (ev) => {
+  if (ev.defaultPrevented) return;
+  const files = clipboardImageFiles(ev);
+  if (!files.length) return;
+  if (isTacticImportModalOpen()) {
+    window.handleTacticPaste(ev);
+    return;
+  }
+  if (viewMode !== 'tactics' || !selectedTacticId) return;
+  if (document.activeElement?.id === 'tactic-paste-target') {
+    window.handleTacticPaste(ev);
+    return;
+  }
+  if (isTextEditingTarget(ev.target)) return;
+  if (ev.target instanceof Element && ev.target.closest('#detail')) {
+    window.handleTacticPaste(ev);
+  }
+});
 
 window.saveTacticImport = async function() {
   const btn = document.getElementById('ti-save-btn');

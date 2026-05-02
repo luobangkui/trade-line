@@ -63,7 +63,7 @@
 }
 ```
 
-返回的图片会写入战法的 `illustration_images`，前端通过 `/uploads/<path>` 展示。
+返回的图片会写入战法的 `illustration_images`，前端通过 `/uploads/<path>` 展示。战法库 UI 支持两种入口：选择本地图片文件，或复制截图/图片后在导入弹窗、战法详情页直接粘贴。
 
 ## 3. 预审匹配 `/api/tactics/match`
 
