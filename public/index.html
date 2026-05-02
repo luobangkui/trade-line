@@ -3295,7 +3295,11 @@ setInterval(loadPermissionChip, 30000);
       args: '<code> [D|W|M]', template: '调用 fetch_eastmoney_kline 拉 {code} 最近 60 根 K 线，识别支撑/压力，给一句结论。' },
     { cmd: '/pretrade',    desc: '盘中买入预审（标的 + 计划动作）',
       args: '<code> <加仓|新买|回补>',
-      template: '我现在想对 {code} 做 {动作}。请按 sop-pretrade.md 流程：先 get_today_context、再 fetch_eastmoney_quote+kline、查 position_plan+permission，最后给 REJECT/WAIT/ALLOW_SMALL/ALLOW 四档之一。' },
+      template: '我现在想对 {code} 做 {动作}。请按 sop-pretrade.md 流程：先 get_today_context、match_pretrade_tactics，再 fetch_eastmoney_quote+kline、查 position_plan+permission，最后给 REJECT/WAIT/ALLOW_SMALL/ALLOW 四档之一，并在记录预审时附 tactic_evaluations。' },
+    { cmd: '/tactics',     desc: '查看战法库',
+      args: '[tag]',       template: '调用 list_tactics{tagFilter}，按战法名、适用动作、模式、关键确认和禁忌项简要列出。' },
+    { cmd: '/tactic-import', desc: '导入战法（粘贴 JSON 或 Markdown）',
+      args: '<content>',   template: '请调用 import_tactics 导入下面的战法内容，format=auto，source=agent:tactics。如果有缺少可检查条件的条目，请指出需要我补充：\n\n{content}' },
     { cmd: '/permission',  desc: '查权限卡（默认明天）',
       args: '[date=明天]', template: '调用 get_permission_card date=${TOMORROW}，告诉我状态/最大仓位/允许动作/禁止动作/止损线。' },
     { cmd: '/plan',        desc: '查持仓计划',
@@ -4299,14 +4303,23 @@ setInterval(loadPermissionChip, 30000);
       prompt = prompt
         .replace(/\{code\}/g, parts[0] || '')
         .replace(/\{动作\}/g, parts[1] || '加仓')
-        .replace(/\{方向\}/g, parts[1] === 'down' ? 'down' : 'up');
+        .replace(/\{方向\}/g, parts[1] === 'down' ? 'down' : 'up')
+        .replace(/\{tag\}/g, parts[0] || '')
+        .replace(/\{tagFilter\}/g, parts[0] ? ` tag=${parts[0]}` : '')
+        .replace(/\{content\}/g, rest);
       // 如果用户传了 date 参数（YYYY-MM-DD），覆盖默认 ${TODAY}/${TOMORROW}
       const ymd = parts.find(p => /^\d{4}-\d{2}-\d{2}$/.test(p));
       if(ymd){
         prompt = prompt.replace(/date=\d{4}-\d{2}-\d{2}/g, `date=${ymd}`);
       }
     } else {
-      prompt = prompt.replace(/\{code\}/g, '').replace(/\{动作\}/g, '').replace(/\{方向\}/g, 'up');
+      prompt = prompt
+        .replace(/\{code\}/g, '')
+        .replace(/\{动作\}/g, '')
+        .replace(/\{方向\}/g, 'up')
+        .replace(/\{tag\}/g, '')
+        .replace(/\{tagFilter\}/g, '')
+        .replace(/\{content\}/g, '');
     }
     return { ok: true, content: prompt };
   }

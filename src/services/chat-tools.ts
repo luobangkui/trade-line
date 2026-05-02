@@ -6,9 +6,11 @@ import {
   getPositionPlansByDate, getPositionPlansByRange, getPositionPlan,
   getNextTradePlan, getNextTradePlansByRange,
   getPretradeReviewsByDate, getPretradeReviewsByRange, getPretradeReview,
+  listTactics, getTactic,
 } from '../db/store';
 import { detectTradeViolations } from './violation-detector';
 import { riskMatrixForCard } from './risk-matrix';
+import { matchPretradeTactics } from './tactic-matcher';
 import {
   aggregatePeriodReview, buildPeriodInsight, isoWeekKey, monthKey,
 } from './period-reviewer';
@@ -560,6 +562,58 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       additionalProperties: false,
     },
     (args) => getPretradeReview(strParam('id', args)!) ?? null,
+  ),
+  defineRead(
+    'list_tactics',
+    '查询战法库条目。默认不含 archived；可按 tag/status 过滤。',
+    {
+      type: 'object',
+      properties: {
+        include_archived: { type: 'boolean', description: '是否包含已归档战法，默认 false' },
+        tag: { type: 'string', description: '按 tag 过滤，可选' },
+        status: { type: 'string', enum: ['draft', 'active', 'archived'], description: '按状态过滤，可选' },
+      },
+      additionalProperties: false,
+    },
+    (args) => listTactics({
+      include_archived: args['include_archived'] === true,
+      tag: args['tag'] ? String(args['tag']) : undefined,
+      status: args['status'] === 'draft' || args['status'] === 'active' || args['status'] === 'archived'
+        ? args['status']
+        : undefined,
+    }),
+  ),
+  defineRead(
+    'get_tactic',
+    '查询单条战法。id 可传 tactic id、name 或 alias。',
+    {
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+    (args) => getTactic(strParam('id', args)!) ?? null,
+  ),
+  defineRead(
+    'match_pretrade_tactics',
+    '根据盘中预审意图匹配战法库，返回候选战法、缺失确认、禁忌命中和保守建议。该工具只辅助判断，不能覆盖 permission/risk_matrix。',
+    {
+      type: 'object',
+      properties: {
+        date: { type: 'string', description: 'YYYY-MM-DD，可选' },
+        symbol: { type: 'string' },
+        name: { type: 'string' },
+        action: { type: 'string', enum: ['buy', 'add', 'rebuy', 'switch'] },
+        risk_action: { type: 'string', enum: ['new_buy', 'add_winner', 'add_loser', 'rebuy_same_symbol', 'switch_position', 'reduce', 'sell', 'hold'] },
+        mode: { type: 'string' },
+        rationale: { type: 'string' },
+        tags: { type: 'array', items: { type: 'string' } },
+        market_stage: { type: 'string', enum: ['CHAOS', 'REPAIR_EARLY', 'REPAIR_CONFIRM', 'MAIN_UP', 'HIGH_RISK', 'DISTRIBUTION', 'UNKNOWN'] },
+        permission_status: { type: 'string', enum: ['protect', 'normal', 'attack'] },
+      },
+      additionalProperties: false,
+    },
+    (args) => matchPretradeTactics(args as unknown as Parameters<typeof matchPretradeTactics>[0]),
   ),
   defineRead(
     'get_violations',

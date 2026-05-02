@@ -111,6 +111,9 @@
 | `net_position_delta` | 本次交易导致总仓净变化，0.05 表示增加 5% |
 | `current_total_position` / `projected_total_position` | 交易前后总仓位 |
 | `matched_risk_rules` | 命中的 `risk_matrix.rules[].id` |
+| `tactic_evaluations` | 战法匹配留痕：候选战法、缺失确认、禁忌命中和保守建议 |
+
+战法只作为预审的辅助检查清单：缺关键确认时应进入 `WAIT`，命中禁忌时应进入 `REJECT`；战法满足不能绕过权限卡、风控矩阵、退出条件或仓位约束。
 
 ## 4. 违规/风险信号检测 `/api/violations`
 
@@ -149,6 +152,7 @@
 
 1. 用户发预审卡。
 2. Agent 先查 `/api/next-trade-plan?date=$today`，判断计划内/观察池/计划外。
-3. Agent 按 `sop-pretrade.md` 检查权限矩阵、仓位和行情。
-4. 写 `/api/pretrade`。
-5. 用户只能按 `verdict` 执行。
+3. Agent 调 `/api/tactics/match` 或 `match_pretrade_tactics`，判断战法缺口和禁忌。
+4. Agent 按 `sop-pretrade.md` 检查权限矩阵、仓位和行情。
+5. 写 `/api/pretrade`，附带 `tactic_evaluations`。
+6. 用户只能按 `verdict` 执行。

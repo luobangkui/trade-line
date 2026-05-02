@@ -23,11 +23,12 @@ import {
   upsertPositionPlan, getPositionPlan, setPositionPlanLock,
   upsertNextTradePlan, getNextTradePlan, setNextTradePlanLock,
   upsertDailyReview, getDailyReview, getSnapshotByDate,
-  insertInput, insertFutureItem, getPeriodReview,
+  insertInput, insertFutureItem, getPeriodReview, upsertTactic,
 } from '../db/store';
 import { aggregateSnapshot } from './aggregator';
 import { aggregateDailyReview } from './reviewer';
 import { aggregatePeriodReview, applyPeriodPlan } from './period-reviewer';
+import { parseTacticImportRequest } from './tactic-importer';
 import type {
   TradeOperation, TradeOperationUploadRequest,
   OperationEvaluation, OperationEvaluationUploadRequest,
@@ -38,6 +39,7 @@ import type {
   NextTradePlan, NextTradePlanUpsertRequest,
   PeriodReviewPlanRequest, PeriodType,
   BaselineInput, FutureWatchItem, InputUploadRequest,
+  TacticImportRequest,
 } from '../models/types';
 
 export type WriteToolName =
@@ -47,6 +49,7 @@ export type WriteToolName =
   | 'trigger_aggregate_period_review'
   | 'create_journal'
   | 'patch_journal'
+  | 'import_tactics'
   | 'create_operation_evaluation'
   | 'create_pretrade_review'
   | 'create_trade_operation'
@@ -443,7 +446,54 @@ const tCreateEval: WriteHandler = {
 };
 
 /* ─────────────────────────────────────────────
- * 8. create_pretrade_review  (direct, low)
+ * 8. import_tactics  (direct, low)
+ * ───────────────────────────────────────────── */
+const tImportTactics: WriteHandler = {
+  name: 'import_tactics',
+  side_effect: 'write_direct',
+  risk: 'low',
+  description: '导入一批战法到战法库。支持 format=auto/json/markdown；同名默认跳过，overwrite=true 才覆盖。',
+  parameters: {
+    type: 'object',
+    properties: {
+      format: { type: 'string', enum: ['auto', 'json', 'markdown'], description: '默认 auto' },
+      content: { type: 'string', description: 'JSON 或 Markdown 战法内容' },
+      items: {
+        type: 'array',
+        items: { type: 'object', additionalProperties: true },
+        description: '结构化战法数组；传 items 时优先于 content',
+      },
+      source: { type: 'string', description: '来源，如 manual / agent:tactics / imported:notes' },
+      created_by: { type: 'string', description: '创建者，默认当前 agent source' },
+      overwrite: { type: 'boolean', description: '同名或同 id 是否覆盖，默认 false' },
+    },
+    additionalProperties: false,
+  },
+  preview: (args) => ({
+    summary: `导入战法：${args['items'] ? '结构化数组' : args['format'] ?? 'auto'}`,
+    target: 'tactics',
+  }),
+  snapshot: () => null,
+  apply(args, ctx) {
+    const body = args as unknown as TacticImportRequest;
+    const parsed = parseTacticImportRequest({
+      ...body,
+      source: body.source ?? ctx.source,
+      created_by: body.created_by ?? ctx.source,
+    });
+    const imported = [];
+    const skipped = [...parsed.skipped];
+    for (const tactic of parsed.imported) {
+      const r = upsertTactic(tactic, { overwrite: body.overwrite });
+      if (r.skipped) skipped.push({ name: tactic.name, reason: r.reason ?? '已存在' });
+      else imported.push({ id: r.tactic.id, name: r.tactic.name });
+    }
+    return { imported, skipped, warnings: parsed.warnings };
+  },
+};
+
+/* ─────────────────────────────────────────────
+ * 9. create_pretrade_review  (direct, low)
  * ───────────────────────────────────────────── */
 const tCreatePretrade: WriteHandler = {
   name: 'create_pretrade_review',
@@ -479,6 +529,11 @@ const tCreatePretrade: WriteHandler = {
       checked_permission_date: { type: 'string', description: 'YYYY-MM-DD' },
       checked_permission_status: { type: 'string', enum: ['protect', 'normal', 'attack'] },
       market_snapshot: { type: 'object', additionalProperties: true },
+      tactic_evaluations: {
+        type: 'array',
+        items: { type: 'object', additionalProperties: true },
+        description: 'match_pretrade_tactics 返回的 evaluations 子集，用于预审留痕',
+      },
     },
     required: ['date', 'symbol', 'name', 'action', 'mode', 'rationale', 'exit_condition', 'verdict'],
     additionalProperties: false,
@@ -520,6 +575,7 @@ const tCreatePretrade: WriteHandler = {
       checked_permission_status: body.checked_permission_status,
       linked_position_plan_id: body.linked_position_plan_id,
       market_snapshot: body.market_snapshot,
+      tactic_evaluations: body.tactic_evaluations,
       source: body.source ?? ctx.source,
       created_at: nowIso(),
     };
@@ -1122,6 +1178,7 @@ export const WRITE_HANDLERS: Record<WriteToolName, WriteHandler> = {
   trigger_aggregate_period_review: tAggPeriod,
   create_journal: tCreateJournal,
   patch_journal: tPatchJournal,
+  import_tactics: tImportTactics,
   create_operation_evaluation: tCreateEval,
   create_pretrade_review: tCreatePretrade,
   create_trade_operation: tCreateOp,

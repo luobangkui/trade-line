@@ -6,6 +6,7 @@ import type {
   PeriodReview, PeriodType, ReviewJournal, TradingPermissionCard,
   PositionPlan, PretradeReview, NextTradePlan,
   ChatSettings, ChatThread, ChatMessage, ChatProposal, ChatProposalStatus,
+  TacticDefinition,
 } from '../models/types';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
@@ -26,6 +27,7 @@ interface DB {
   position_plans: PositionPlan[];
   pretrade_reviews: PretradeReview[];
   next_trade_plans: NextTradePlan[];
+  tactics: TacticDefinition[];
   chat_settings?: ChatSettings;
   chat_threads: ChatThread[];
   chat_messages: ChatMessage[];
@@ -37,7 +39,7 @@ const EMPTY_DB: DB = {
   trade_operations: [], operation_evaluations: [], daily_reviews: [],
   weekly_reviews: [], monthly_reviews: [], review_journals: [],
   permission_cards: [], position_plans: [], pretrade_reviews: [],
-  next_trade_plans: [],
+  next_trade_plans: [], tactics: [],
   chat_threads: [], chat_messages: [], chat_proposals: [],
 };
 
@@ -566,6 +568,56 @@ export function deletePretradeReview(id: string): boolean {
   db.pretrade_reviews = db.pretrade_reviews.filter((r) => r.id !== id);
   save(db);
   return db.pretrade_reviews.length < before;
+}
+
+// ── Tactics ─────────────────────────────────────────────────
+export function upsertTactic(
+  tactic: TacticDefinition,
+  opts: { overwrite?: boolean } = {},
+): { tactic: TacticDefinition; skipped: boolean; reason?: string } {
+  const db = load();
+  const idx = db.tactics.findIndex((t) => t.id === tactic.id || t.name === tactic.name);
+  if (idx >= 0) {
+    const old = db.tactics[idx];
+    if (!opts.overwrite) {
+      return { tactic: old, skipped: true, reason: '同名或同 id 战法已存在' };
+    }
+    const merged: TacticDefinition = {
+      ...tactic,
+      id: old.id,
+      imported_at: old.imported_at,
+      created_at: old.created_at,
+      updated_at: new Date().toISOString(),
+    };
+    db.tactics[idx] = merged;
+    save(db);
+    return { tactic: merged, skipped: false };
+  }
+  db.tactics.push(tactic);
+  save(db);
+  return { tactic, skipped: false };
+}
+
+export function getTactic(id: string): TacticDefinition | undefined {
+  return load().tactics.find((t) => t.id === id || t.name === id || t.aliases.includes(id));
+}
+
+export function listTactics(opts: { include_archived?: boolean; tag?: string; status?: TacticDefinition['status'] } = {}): TacticDefinition[] {
+  return [...load().tactics]
+    .filter((t) => opts.include_archived || t.status !== 'archived')
+    .filter((t) => !opts.status || t.status === opts.status)
+    .filter((t) => !opts.tag || t.tags.includes(opts.tag))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function archiveTactic(id: string): TacticDefinition | undefined {
+  const db = load();
+  const tactic = db.tactics.find((t) => t.id === id || t.name === id);
+  if (!tactic) return undefined;
+  tactic.status = 'archived';
+  tactic.updated_at = new Date().toISOString();
+  save(db);
+  return tactic;
 }
 
 // ── Next Trade Plans ───────────────────────────────────────

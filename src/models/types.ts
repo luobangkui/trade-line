@@ -600,6 +600,131 @@ export interface PositionPlanUpsertRequest {
 export type PretradeAction = 'buy' | 'add' | 'rebuy' | 'switch';
 export type PretradeVerdict = 'REJECT' | 'WAIT' | 'ALLOW_SMALL' | 'ALLOW';
 
+/* ─────────────────────────────────────────────
+ * 战法库 (Tactics)
+ * 可导入、可查询，并在盘中预审时作为检查清单引用
+ * ───────────────────────────────────────────── */
+
+export type TacticStatus = 'draft' | 'active' | 'archived';
+export type TacticCategory = 'entry' | 'add' | 'rebuy' | 'switch' | 'exit' | 'risk' | 'general';
+export type TacticConditionKind = 'setup' | 'trigger' | 'confirm' | 'invalidation' | 'forbidden';
+export type TacticEvaluationStatus = 'matched' | 'partial' | 'blocked';
+export type TacticImportFormat = 'auto' | 'json' | 'markdown';
+
+export interface TacticCondition {
+  id: string;
+  kind: TacticConditionKind;
+  text: string;
+  required?: boolean;
+  evidence_hint?: string;
+  missing_verdict?: PretradeVerdict;
+}
+
+export interface TacticDefinition {
+  id: string;
+  name: string;
+  aliases: string[];
+  status: TacticStatus;
+  version: number;
+  category: TacticCategory;
+  summary: string;
+  tags: string[];
+  applicable_actions: PretradeAction[];
+  risk_actions: RiskAction[];
+  allowed_modes: string[];
+  market_stages: MarketStage[];
+  permission_statuses: PermissionStatus[];
+  setup_conditions: TacticCondition[];
+  entry_triggers: TacticCondition[];
+  confirm_signals: TacticCondition[];
+  invalidation_conditions: TacticCondition[];
+  forbidden_conditions: TacticCondition[];
+  position_sizing?: string;
+  notes?: string;
+  source: string;
+  source_text?: string;
+  imported_at: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TacticDefinitionCreateRequest {
+  id?: string;
+  name: string;
+  aliases?: string[];
+  status?: TacticStatus;
+  version?: number;
+  category?: TacticCategory;
+  summary?: string;
+  tags?: string[];
+  applicable_actions?: PretradeAction[];
+  risk_actions?: RiskAction[];
+  allowed_modes?: string[];
+  market_stages?: MarketStage[];
+  permission_statuses?: PermissionStatus[];
+  setup_conditions?: Array<string | Partial<TacticCondition>>;
+  entry_triggers?: Array<string | Partial<TacticCondition>>;
+  confirm_signals?: Array<string | Partial<TacticCondition>>;
+  invalidation_conditions?: Array<string | Partial<TacticCondition>>;
+  forbidden_conditions?: Array<string | Partial<TacticCondition>>;
+  position_sizing?: string;
+  notes?: string;
+  source?: string;
+  source_text?: string;
+  created_by?: string;
+}
+
+export interface TacticImportRequest {
+  format?: TacticImportFormat;
+  content?: string;
+  items?: TacticDefinitionCreateRequest[];
+  source?: string;
+  created_by?: string;
+  overwrite?: boolean;
+}
+
+export interface TacticImportResult {
+  imported: TacticDefinition[];
+  skipped: Array<{ name: string; reason: string }>;
+  warnings: string[];
+}
+
+export interface TacticMatchIntent {
+  date?: string;
+  symbol?: string;
+  name?: string;
+  action?: PretradeAction;
+  risk_action?: RiskAction;
+  mode?: string;
+  rationale?: string;
+  tags?: string[];
+  market_stage?: MarketStage;
+  permission_status?: PermissionStatus;
+}
+
+export interface TacticEvaluation {
+  tactic_id: string;
+  tactic_name: string;
+  status: TacticEvaluationStatus;
+  score: number;
+  matched_conditions: string[];
+  missing_conditions: string[];
+  forbidden_hits: string[];
+  suggested_verdict?: PretradeVerdict;
+  reasons: string[];
+}
+
+export interface TacticMatchResult {
+  intent: TacticMatchIntent;
+  evaluations: TacticEvaluation[];
+  best_match?: TacticEvaluation;
+  suggested_verdict?: PretradeVerdict;
+  wait_conditions: string[];
+  forbidden_actions: string[];
+  reasons: string[];
+}
+
 export interface PretradeReview {
   id: string;
   date: string;
@@ -630,6 +755,7 @@ export interface PretradeReview {
   checked_permission_status?: PermissionStatus;
   linked_position_plan_id?: string;
   market_snapshot?: Record<string, unknown>;
+  tactic_evaluations?: TacticEvaluation[];
   source: string;
   created_at: string;
 }
@@ -663,6 +789,7 @@ export interface PretradeReviewCreateRequest {
   checked_permission_status?: PermissionStatus;
   linked_position_plan_id?: string;
   market_snapshot?: Record<string, unknown>;
+  tactic_evaluations?: TacticEvaluation[];
   source?: string;
 }
 

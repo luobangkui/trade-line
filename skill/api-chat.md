@@ -1,6 +1,6 @@
-# Chat 通道 API（Phase A：基础聊天 + 只读工具）
+# Chat 通道 API（基础聊天 + 读写工具）
 
-> 内置在 trade-line 的对话面板，使用 OpenAI 兼容协议接入任意 LLM；当前阶段只暴露**只读工具**，agent 不能直接写库。
+> 内置在 trade-line 的对话面板，使用 OpenAI 兼容协议接入任意 LLM；工具分为只读、直接写入和需确认写入三类。
 
 ## 1. 设置 `/api/chat/settings`
 
@@ -98,6 +98,7 @@ curl -s https://openapi.dp.tech/openapi/v1/chat/completions \
 - `get_permission_card(date)` / `get_permission_cards(start,end)`
 - `get_position_plans(date|start+end)` / `get_position_plan(date,symbol)`
 - `get_pretrade_reviews(date|start+end)` / `get_pretrade_review(id)`
+- `list_tactics` / `get_tactic(id)` / `match_pretrade_tactics(...)`
 - `get_violations(date)`
 - `get_today_context(date)`：一次拿当日 baseline / permission / position-plan / pretrade / violations
 
@@ -108,10 +109,14 @@ curl -s https://openapi.dp.tech/openapi/v1/chat/completions \
 - `fetch_eastmoney_zt_pool({ date })` / `fetch_eastmoney_dt_pool({ date })`
 - `fetch_eastmoney_concept_boards({ direction?, limit? })`：`direction = up|down`
 
-> 说明：所有工具 `side_effect = read`，不会写库；写入类操作（创建预审/计划卡/复盘）请继续走原有 REST 接口。
+### 写入工具
+
+- `import_tactics`：导入 JSON / Markdown / 结构化战法。
+- `create_pretrade_review`：记录预审，可附 `tactic_evaluations`。
+- 其它复盘、权限卡、计划卡写入工具见 `GET /api/chat/tools` 返回的 `side_effect`。
 
 ## 5. 默认 system prompt（节选）
 
-> "讨论交易/持仓/复盘时：先调用 `get_today_context` 等只读工具拿真实数据；提到具体个股优先 `fetch_eastmoney_quote / kline`；回复要明确说明依据来自哪个工具；当前阶段所有工具均只读，不要承诺执行任何写入操作。"
+> "讨论交易/持仓/复盘时：先调用 `get_today_context` 等工具拿真实数据；买入类预审要调用 `match_pretrade_tactics`，战法只能让结论更保守或补充等待条件；提到具体个股优先 `fetch_eastmoney_quote / kline`；回复要明确说明依据来自哪个工具。"
 
 如需自定义可在「对话设置」中覆盖。

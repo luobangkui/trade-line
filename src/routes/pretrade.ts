@@ -49,6 +49,7 @@ function buildReview(body: PretradeReviewCreateRequest): PretradeReview {
     checked_permission_status: body.checked_permission_status,
     linked_position_plan_id: body.linked_position_plan_id,
     market_snapshot: body.market_snapshot,
+    tactic_evaluations: body.tactic_evaluations,
     source: body.source ?? 'agent:pretrade',
     created_at: now,
   };

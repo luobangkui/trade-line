@@ -8,6 +8,7 @@ import positionPlanRouter from './routes/position-plan';
 import nextTradePlanRouter from './routes/next-trade-plan';
 import pretradeRouter from './routes/pretrade';
 import violationsRouter from './routes/violations';
+import tacticsRouter from './routes/tactics';
 import chatRouter from './routes/chat';
 import { ensureUploadsDir, UPLOADS_DIR } from './services/chat-uploads';
 
@@ -41,6 +42,7 @@ app.use('/api/position-plan', positionPlanRouter);
 app.use('/api/next-trade-plan', nextTradePlanRouter);
 app.use('/api/pretrade', pretradeRouter);
 app.use('/api/violations', violationsRouter);
+app.use('/api/tactics', tacticsRouter);
 app.use('/api/chat', chatRouter);
 app.get('*', (_req, res) => res.sendFile(path.join(process.cwd(), 'public', 'index.html')));
 

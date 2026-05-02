@@ -52,7 +52,13 @@
    ├─ 所属板块与当日强度：是否属于今日主线或后排
    └─ 市场背景：指数、涨跌家数、涨停/跌停池、强弱板块
 
-4. 做硬规则检查
+4. 匹配战法
+   ├─ 调用 match_pretrade_tactics，传入 action / risk_action / mode / permission_status / market_stage / rationale
+   ├─ 读取 best_match、missing_conditions、forbidden_hits
+   ├─ 战法缺关键确认时，结论至少降为 WAIT
+   └─ 战法命中 forbidden_conditions 时，结论必须 REJECT
+
+5. 做硬规则检查
    ├─ 先识别 risk_action：new_buy / add_winner / add_loser / rebuy_same_symbol / switch_position
    ├─ 优先按 risk_matrix 判断动作权限
    ├─ 是否属于 allowed_modes、是否有买错退出条件
@@ -61,11 +67,12 @@
    ├─ 若为 switch_position，是否有对应卖出资金、是否净仓不增加
    └─ 若为 add_loser / 摊低成本 / 亏损补仓，直接硬拒绝
 
-5. 输出预审结论
+6. 输出并记录预审结论
    ├─ REJECT：禁止买
    ├─ WAIT：现在不能买，给出等待条件
    ├─ ALLOW_SMALL：只允许极小仓，必须给金额上限
-   └─ ALLOW：仅在权限、模式、行情、退出条件全部合格时使用
+   ├─ ALLOW：仅在权限、模式、行情、退出条件全部合格时使用
+   └─ 写 create_pretrade_review 时附带 tactic_evaluations 留痕
 ```
 
 ## 外部行情默认接口
@@ -110,6 +117,7 @@ curl --noproxy '*' -sS -A 'Mozilla/5.0' \
 - 亏损票补仓、摊低成本、倒 T。
 - 同一标的第一笔未验证就想买第二笔。
 - 外部消息、群消息、顾问信息没有经过主线/强度/买点/止损验证。
+- 命中战法 `forbidden_conditions`。
 
 ## 等待规则
 
@@ -121,6 +129,7 @@ curl --noproxy '*' -sS -A 'Mozilla/5.0' \
 - 板块不是当日主线：等待板块进入涨幅/成交额前列。
 - 放量不足：等待成交额或量比达到预设条件。
 - 市场修复但个人权限未恢复：等待次日权限卡升级。
+- 战法关键确认缺失：等待 `match_pretrade_tactics` 返回的 `missing_conditions`。
 
 ## 输出模板
 
@@ -134,6 +143,7 @@ curl --noproxy '*' -sS -A 'Mozilla/5.0' \
 - 权限卡：status=...，最大仓位=...，命中/未命中 ...
 - 行情位置：现价=...，今日涨跌=...，近20日位置=...
 - 板块强度：...
+- 战法匹配：best_match=...，matched=...，missing=...，forbidden=...
 - 历史错误匹配：...
 
 ### 如果仍想做，必须等待
