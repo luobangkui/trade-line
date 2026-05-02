@@ -806,11 +806,43 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
   border:1px solid rgba(59,130,246,.25); border-radius:9px; padding:1px 7px;
 }
 .tactic-meta { margin-top:8px; color:#64748b; font-size:11px; display:flex; gap:8px; flex-wrap:wrap; }
+.tactic-overview {
+  display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;
+}
+.tactic-pillbox { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+.tactic-pill {
+  display:inline-flex; align-items:center; gap:4px;
+  font-size:10px; color:#cbd5e1; background:rgba(15,23,42,.45);
+  border:1px solid var(--border); border-radius:999px; padding:2px 8px;
+}
 .tactic-detail-kv { background:var(--bg3); border:1px solid var(--border); border-radius:7px; padding:9px 10px; margin-bottom:10px; }
 .tactic-detail-kv .k { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px; }
 .tactic-detail-kv .v { color:#e2e8f0; font-size:12px; line-height:1.55; }
-.tactic-cond-list { padding-left:18px; margin:0; color:#cbd5e1; font-size:12px; line-height:1.65; }
+.tactic-check-group {
+  background:var(--bg3); border:1px solid var(--border); border-radius:8px;
+  margin-bottom:8px; overflow:hidden;
+}
+.tactic-check-group summary {
+  cursor:pointer; list-style:none; display:flex; align-items:center; gap:8px;
+  padding:9px 10px; color:#e2e8f0; font-size:12px; font-weight:600;
+}
+.tactic-check-group summary::-webkit-details-marker { display:none; }
+.tactic-check-group summary:before { content:'▸'; color:#64748b; font-size:10px; }
+.tactic-check-group[open] summary:before { content:'▾'; }
+.tactic-check-count {
+  margin-left:auto; font-size:10px; color:#94a3b8; background:var(--bg2);
+  border:1px solid var(--border); border-radius:8px; padding:1px 7px;
+}
+.tactic-cond-list { padding:0 12px 10px 28px; margin:0; color:#cbd5e1; font-size:12px; line-height:1.65; }
 .tactic-cond-list li { margin-bottom:3px; }
+.tactic-source-md {
+  font-size:12px; line-height:1.6; color:#cbd5e1; padding:0 10px 10px;
+}
+.tactic-source-md h4 { color:#f8fafc; margin:8px 0 4px; font-size:13px; }
+.tactic-source-md h5 { color:#e2e8f0; margin:7px 0 3px; font-size:12px; }
+.tactic-source-md p { margin:5px 0; }
+.tactic-source-md ul { padding-left:18px; margin:5px 0; }
+.tactic-source-md code { background:var(--bg2); border:1px solid var(--border); border-radius:4px; padding:1px 4px; }
 .tactic-images { display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:8px; }
 .tactic-images img {
   width:100%; max-height:150px; object-fit:cover; border-radius:7px;
@@ -1379,9 +1411,50 @@ function selectTactic(id) {
   renderTacticDetail(tactic);
 }
 
-function conditionList(title, items, color = '#cbd5e1') {
+function tacticPills(items, empty = '不限') {
+  const arr = (items || []).filter(Boolean);
+  if (!arr.length) return `<span class="tactic-pill">${escapeHtml(empty)}</span>`;
+  return arr.slice(0, 8).map(x => `<span class="tactic-pill">${escapeHtml(x)}</span>`).join('');
+}
+
+function renderTacticMarkdown(src) {
+  if (!src) return '';
+  const lines = String(src).split('\n');
+  let inList = false;
+  const out = [];
+  const closeList = () => { if (inList) { out.push('</ul>'); inList = false; } };
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) { closeList(); continue; }
+    let m;
+    if ((m = line.match(/^#{1,2}\s+(.+)$/))) {
+      closeList();
+      out.push(`<h4>${escapeHtml(m[1])}</h4>`);
+    } else if ((m = line.match(/^#{3,6}\s+(.+)$/))) {
+      closeList();
+      out.push(`<h5>${escapeHtml(m[1])}</h5>`);
+    } else if ((m = line.match(/^[-*]\s+(.+)$/))) {
+      if (!inList) { out.push('<ul>'); inList = true; }
+      out.push(`<li>${escapeHtml(m[1])}</li>`);
+    } else {
+      closeList();
+      out.push(`<p>${escapeHtml(line).replace(/`([^`]+)`/g, '<code>$1</code>')}</p>`);
+    }
+  }
+  closeList();
+  return out.join('');
+}
+
+function conditionList(title, items, color = '#cbd5e1', open = false) {
   if (!items?.length) return '';
-  return `<div class="tactic-detail-kv"><div class="k">${title}</div><ul class="tactic-cond-list">${items.map(c => `<li style="color:${color}">${escapeHtml(c.text || c)}</li>`).join('')}</ul></div>`;
+  return `
+    <details class="tactic-check-group" ${open ? 'open' : ''}>
+      <summary>
+        <span>${title}</span>
+        <span class="tactic-check-count">${items.length}</span>
+      </summary>
+      <ul class="tactic-cond-list">${items.map(c => `<li style="color:${color}">${escapeHtml(c.text || c)}</li>`).join('')}</ul>
+    </details>`;
 }
 
 function renderTacticDetail(t) {
@@ -1393,21 +1466,28 @@ function renderTacticDetail(t) {
         ${t.illustration_images.map(img => `<img src="/uploads/${escapeHtml(img.path)}" onclick="openImgViewer('/uploads/${escapeHtml(img.path)}')" alt="战法示意图">`).join('')}
       </div>
     </div>` : '';
+  const sourceMd = t.source_text ? `
+    <details class="tactic-check-group">
+      <summary><span>导入原文 Markdown</span><span class="tactic-check-count">可展开</span></summary>
+      <div class="tactic-source-md">${renderTacticMarkdown(t.source_text)}</div>
+    </details>` : '';
+
   body.innerHTML = `
     ${images}
     <div class="tactic-detail-kv"><div class="k">摘要</div><div class="v">${escapeHtml(t.summary || '暂无摘要')}</div></div>
-    <div class="tactic-detail-kv"><div class="k">适用范围</div><div class="v">
-      动作：${escapeHtml((t.applicable_actions || []).join(' / ') || '不限')}<br>
-      风控动作：${escapeHtml((t.risk_actions || []).join(' / ') || '不限')}<br>
-      模式：${escapeHtml((t.allowed_modes || []).join(' / ') || '不限')}<br>
-      权限：${escapeHtml((t.permission_statuses || []).join(' / ') || '不限')}
-    </div></div>
-    ${conditionList('前置条件', t.setup_conditions)}
-    ${conditionList('入场触发', t.entry_triggers)}
-    ${conditionList('确认信号', t.confirm_signals)}
-    ${conditionList('失效/退出', t.invalidation_conditions, '#facc15')}
-    ${conditionList('禁止条件', t.forbidden_conditions, '#f87171')}
+    <div class="tactic-overview">
+      <div class="tactic-detail-kv"><div class="k">适用动作</div><div class="tactic-pillbox">${tacticPills(t.applicable_actions, '通用')}</div></div>
+      <div class="tactic-detail-kv"><div class="k">风控动作</div><div class="tactic-pillbox">${tacticPills(t.risk_actions, '不限')}</div></div>
+      <div class="tactic-detail-kv"><div class="k">交易模式</div><div class="tactic-pillbox">${tacticPills(t.allowed_modes, '不限模式')}</div></div>
+      <div class="tactic-detail-kv"><div class="k">权限状态</div><div class="tactic-pillbox">${tacticPills(t.permission_statuses, '不限')}</div></div>
+    </div>
+    ${conditionList('前置条件', t.setup_conditions, '#cbd5e1', false)}
+    ${conditionList('入场触发', t.entry_triggers, '#93c5fd', true)}
+    ${conditionList('确认信号', t.confirm_signals, '#c4b5fd', false)}
+    ${conditionList('失效/退出', t.invalidation_conditions, '#facc15', true)}
+    ${conditionList('禁止条件', t.forbidden_conditions, '#f87171', true)}
     ${t.position_sizing ? `<div class="tactic-detail-kv"><div class="k">仓位规则</div><div class="v">${escapeHtml(t.position_sizing)}</div></div>` : ''}
+    ${sourceMd}
     <div class="tactic-detail-kv"><div class="k">标签/来源</div><div class="v">
       ${(t.tags || []).map(tag => `<span class="tactic-tag">#${escapeHtml(tag)}</span>`).join(' ')}
       <div style="margin-top:8px;color:#94a3b8">source=${escapeHtml(t.source || 'manual')} · updated=${escapeHtml((t.updated_at || '').slice(0, 19).replace('T', ' '))}</div>

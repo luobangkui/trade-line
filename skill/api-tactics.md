@@ -89,7 +89,17 @@
 - `list_tactics`
 - `get_tactic`
 - `match_pretrade_tactics`
-- `import_tactics`
+- `import_tactics`：最方便的导入方式。用户粘贴战法笔记、Markdown 或 JSON 时，Agent 直接调用：
+
+```json
+{
+  "format": "auto",
+  "content": "# 主线启动确认\n\n## 前置条件\n- 市场不在 HIGH_RISK\n\n## 买点\n- 放量突破平台\n\n## 失效/退出\n- 跌破启动日低点\n\n## 禁止条件\n- 后排跟风冲高",
+  "source": "agent:tactics"
+}
+```
+
+如用户上传或提到示意图片，优先引导去「战法库」UI 上传；若已拿到图片 base64，可在导入后调用 `/api/tactics/:id/images` 追加图片。
 
 盘中预审时建议顺序：
 

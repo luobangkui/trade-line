@@ -452,16 +452,19 @@ const tImportTactics: WriteHandler = {
   name: 'import_tactics',
   side_effect: 'write_direct',
   risk: 'low',
-  description: '导入一批战法到战法库。支持 format=auto/json/markdown；同名默认跳过，overwrite=true 才覆盖。',
+  description: '导入战法到战法库。最方便用法：用户粘贴一段 Markdown 或 JSON 时，直接调用 import_tactics({format:"auto", content:"...", source:"agent:tactics"})；Markdown 支持 # 标题、## 前置/买点/确认/退出/禁止/仓位 等小节；JSON 可传单个对象、数组或 {items:[...]}。同名默认跳过，overwrite=true 才覆盖。示意图片请提示用户在“战法库”UI 上传，或导入后调用 /api/tactics/:id/images。',
   parameters: {
     type: 'object',
     properties: {
       format: { type: 'string', enum: ['auto', 'json', 'markdown'], description: '默认 auto' },
-      content: { type: 'string', description: 'JSON 或 Markdown 战法内容' },
+      content: {
+        type: 'string',
+        description: 'JSON 或 Markdown 战法内容。Markdown 建议结构：# 战法名；## 前置条件；## 买点/入场触发；## 确认信号；## 失效/退出；## 禁止条件；## 仓位。JSON 常用字段：name/tags/applicable_actions/risk_actions/allowed_modes/setup_conditions/entry_triggers/confirm_signals/invalidation_conditions/forbidden_conditions/position_sizing。',
+      },
       items: {
         type: 'array',
         items: { type: 'object', additionalProperties: true },
-        description: '结构化战法数组；传 items 时优先于 content',
+        description: '结构化战法数组；传 items 时优先于 content。每项至少需要 name；条件字段可以直接传字符串数组。',
       },
       source: { type: 'string', description: '来源，如 manual / agent:tactics / imported:notes' },
       created_by: { type: 'string', description: '创建者，默认当前 agent source' },
