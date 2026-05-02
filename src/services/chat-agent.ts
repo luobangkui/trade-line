@@ -88,7 +88,7 @@ function buildSystemPrompt(custom: string | undefined): string {
     '   ◦ 复盘聚合：trigger_aggregate_daily_review / trigger_aggregate_period_review',
     '   ◦ 日志：create_journal / patch_journal',
     '   ◦ 评估：create_operation_evaluation（给已有 operation 打分）',
-    '   ◦ 战法导入：import_tactics。用户粘贴战法文本/笔记/JSON 时，优先直接用 format=auto + content 导入；如果有图片，提示用户在“战法库”UI 上传示意图，或导入后走 /api/tactics/:id/images。',
+    '   ◦ 战法管理：import_tactics / delete_tactic。导入时优先 format=auto + content；删除前必须先 list_tactics 或 get_tactic 确认目标，误导入/重复导入才物理删除，不确定时建议归档。',
     '   ◦ 预审：create_pretrade_review（如使用了战法判断，写入 tactic_evaluations 留痕）',
     '   ◦ 【交易记录】create_trade_operation / update_trade_operation / delete_trade_operation',
     '     — 用户已授权 agent 直接管理交易数据，不用每次确认。',

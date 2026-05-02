@@ -49,6 +49,7 @@
 | GET | `/api/tactics/:id` | 查询单条战法，id 可为 `id` / `name` / `alias` |
 | POST | `/api/tactics/:id/images` | 为战法追加示意图片 |
 | POST | `/api/tactics/:id/archive` | 归档战法 |
+| DELETE | `/api/tactics/:id` | 物理删除战法，并清理其示意图片文件 |
 
 ### 示意图片
 
@@ -89,7 +90,10 @@
 - `list_tactics`
 - `get_tactic`
 - `match_pretrade_tactics`
-- `import_tactics`：最方便的导入方式。用户粘贴战法笔记、Markdown 或 JSON 时，Agent 直接调用：
+- `import_tactics`：最方便的导入方式。用户粘贴战法笔记、Markdown 或 JSON 时，Agent 直接调用。
+- `delete_tactic`：删除误导入、重复导入或明确废弃的战法。调用前必须先 `list_tactics` 或 `get_tactic` 确认目标，优先传返回的 `id`；如果只是暂时不用，建议归档而不是物理删除。
+
+`import_tactics` 示例：
 
 ```json
 {

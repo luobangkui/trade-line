@@ -23,12 +23,13 @@ import {
   upsertPositionPlan, getPositionPlan, setPositionPlanLock,
   upsertNextTradePlan, getNextTradePlan, setNextTradePlanLock,
   upsertDailyReview, getDailyReview, getSnapshotByDate,
-  insertInput, insertFutureItem, getPeriodReview, upsertTactic,
+  insertInput, insertFutureItem, getPeriodReview, upsertTactic, getTactic, deleteTactic,
 } from '../db/store';
 import { aggregateSnapshot } from './aggregator';
 import { aggregateDailyReview } from './reviewer';
 import { aggregatePeriodReview, applyPeriodPlan } from './period-reviewer';
 import { parseTacticImportRequest } from './tactic-importer';
+import { deleteAttachmentFiles } from './chat-uploads';
 import type {
   TradeOperation, TradeOperationUploadRequest,
   OperationEvaluation, OperationEvaluationUploadRequest,
@@ -50,6 +51,7 @@ export type WriteToolName =
   | 'create_journal'
   | 'patch_journal'
   | 'import_tactics'
+  | 'delete_tactic'
   | 'create_operation_evaluation'
   | 'create_pretrade_review'
   | 'create_trade_operation'
@@ -496,7 +498,37 @@ const tImportTactics: WriteHandler = {
 };
 
 /* ─────────────────────────────────────────────
- * 9. create_pretrade_review  (direct, low)
+ * 9. delete_tactic  (direct, medium)
+ * ───────────────────────────────────────────── */
+const tDeleteTactic: WriteHandler = {
+  name: 'delete_tactic',
+  side_effect: 'write_direct',
+  risk: 'medium',
+  description: '物理删除战法库中的某个战法，并清理该战法已上传的示意图片。删除前必须先用 list_tactics 或 get_tactic 确认目标 id/name/alias，适合清理误导入、重复导入或废弃战法；如果只是暂时不用，优先提示用户使用归档。',
+  parameters: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', description: '战法 id / name / alias，建议优先传 get_tactic 返回的 id' },
+    },
+    required: ['id'],
+    additionalProperties: false,
+  },
+  preview: (args) => ({
+    summary: `删除战法：${args['id']}`,
+    target: `tactic:${args['id']}`,
+  }),
+  snapshot: (args) => getTactic(String(args['id'] ?? '')) ?? null,
+  apply(args) {
+    const id = str('id', args)!;
+    const tactic = deleteTactic(id);
+    if (!tactic) throw new Error(`战法不存在：${id}`);
+    deleteAttachmentFiles(tactic.illustration_images);
+    return { success: true, id: tactic.id, name: tactic.name };
+  },
+};
+
+/* ─────────────────────────────────────────────
+ * 10. create_pretrade_review  (direct, low)
  * ───────────────────────────────────────────── */
 const tCreatePretrade: WriteHandler = {
   name: 'create_pretrade_review',
@@ -1182,6 +1214,7 @@ export const WRITE_HANDLERS: Record<WriteToolName, WriteHandler> = {
   create_journal: tCreateJournal,
   patch_journal: tPatchJournal,
   import_tactics: tImportTactics,
+  delete_tactic: tDeleteTactic,
   create_operation_evaluation: tCreateEval,
   create_pretrade_review: tCreatePretrade,
   create_trade_operation: tCreateOp,

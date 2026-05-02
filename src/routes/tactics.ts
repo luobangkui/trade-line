@@ -1,10 +1,12 @@
 import { Router, type Request, type Response } from 'express';
 import {
-  archiveTactic, getTactic, listTactics, upsertTactic,
+  archiveTactic, deleteTactic, getTactic, listTactics, upsertTactic,
 } from '../db/store';
 import { parseTacticImportRequest } from '../services/tactic-importer';
 import { matchPretradeTactics } from '../services/tactic-matcher';
-import { saveImage, MAX_BYTES_PER_REQUEST } from '../services/chat-uploads';
+import {
+  deleteAttachmentFiles, saveImage, MAX_BYTES_PER_REQUEST,
+} from '../services/chat-uploads';
 import type { TacticImportRequest, TacticMatchIntent, TacticStatus } from '../models/types';
 
 const router = Router();
@@ -102,6 +104,13 @@ router.post('/:id/archive', (req: Request, res: Response) => {
   const tactic = archiveTactic(req.params.id);
   if (!tactic) return res.status(404).json({ error: '战法不存在' });
   return res.json({ success: true, tactic });
+});
+
+router.delete('/:id', (req: Request, res: Response) => {
+  const tactic = deleteTactic(req.params.id);
+  if (!tactic) return res.status(404).json({ error: '战法不存在' });
+  deleteAttachmentFiles(tactic.illustration_images);
+  return res.json({ success: true, id: tactic.id, name: tactic.name });
 });
 
 export default router;

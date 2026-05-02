@@ -112,6 +112,7 @@ curl -s https://openapi.dp.tech/openapi/v1/chat/completions \
 ### 写入工具
 
 - `import_tactics`：导入 JSON / Markdown / 结构化战法。
+- `delete_tactic`：物理删除误导入/重复导入的战法；删除前先用 `list_tactics` 或 `get_tactic` 确认目标。
 - `create_pretrade_review`：记录预审，可附 `tactic_evaluations`。
 - 其它复盘、权限卡、计划卡写入工具见 `GET /api/chat/tools` 返回的 `side_effect`。
 

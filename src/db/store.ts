@@ -620,6 +620,15 @@ export function archiveTactic(id: string): TacticDefinition | undefined {
   return tactic;
 }
 
+export function deleteTactic(id: string): TacticDefinition | undefined {
+  const db = load();
+  const idx = db.tactics.findIndex((t) => t.id === id || t.name === id || t.aliases.includes(id));
+  if (idx < 0) return undefined;
+  const [deleted] = db.tactics.splice(idx, 1);
+  save(db);
+  return deleted;
+}
+
 // ── Next Trade Plans ───────────────────────────────────────
 /**
  * 覆盖语义：每日一张下一交易日计划（按 date 唯一）。

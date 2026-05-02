@@ -1495,6 +1495,7 @@ function renderTacticDetail(t) {
     <div class="detail-section" style="display:flex;gap:8px">
       <button class="detail-btn" style="flex:1" onclick="document.getElementById('tactic-detail-image-input').click()">+ 添加图片</button>
       <button class="detail-btn" style="flex:1;background:transparent;border-color:#ef444466;color:#ef4444" onclick="archiveTacticConfirm('${escapeHtml(t.id)}')">归档</button>
+      <button class="detail-btn" style="flex:1;background:#7f1d1d33;border-color:#ef4444;color:#fecaca" onclick="deleteTacticConfirm('${escapeHtml(t.id)}')">删除</button>
       <input id="tactic-detail-image-input" type="file" accept="image/*" multiple style="display:none" onchange="uploadImagesForTactic('${escapeHtml(t.id)}', event.target.files)">
     </div>
   `;
@@ -2134,6 +2135,18 @@ window.archiveTacticConfirm = async function(id) {
   if (!res.ok) { alert(data.error || '归档失败'); return; }
   await loadTimeline();
   await selectTactic(id);
+};
+
+window.deleteTacticConfirm = async function(id) {
+  const tactic = tacticsData.find(t => t.id === id);
+  if (!tactic) return;
+  if (!confirm(`确认永久删除战法「${tactic.name}」吗？\n\n这会删除战法记录及其示意图片，无法恢复。`)) return;
+  const res = await fetch(`/api/tactics/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { alert(data.error || '删除失败'); return; }
+  closeDetail();
+  selectedTacticId = null;
+  await loadTimeline();
 };
 
 function closeDetail() {

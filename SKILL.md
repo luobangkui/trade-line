@@ -123,6 +123,7 @@ description: >-
 │   ├─ 查战法列表              → GET  /api/tactics
 │   ├─ 查单条战法              → GET  /api/tactics/:id
 │   ├─ 归档战法                → POST /api/tactics/:id/archive
+│   ├─ 删除误导入战法          → DELETE /api/tactics/:id
 │   └─ 匹配预审意图            → POST /api/tactics/match
 │      详情：skill/api-tactics.md
 │
