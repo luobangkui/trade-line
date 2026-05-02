@@ -938,6 +938,66 @@ body { background: var(--bg); color: var(--text); font-family: 'SF Pro Display',
   position:absolute; top:2px; right:2px; background:rgba(0,0,0,.68); color:#fff;
   border-radius:50%; width:18px; height:18px; line-height:18px; text-align:center; cursor:pointer; font-size:11px;
 }
+
+/* ── Readability bump ── */
+:root {
+  --sidebar: 260px;
+  --detail: 380px;
+}
+body { font-size: 15px; }
+#topbar { height: 60px; }
+#topbar .logo { font-size: 18px; }
+#status-chip,
+.permission-chip,
+.view-switch button,
+#topbar .today-badge,
+.filter-btn,
+.date-item,
+.tactic-btn,
+.tactic-search,
+.detail-btn,
+.modal-btn,
+input,
+select,
+textarea,
+button {
+  font-size: 13px;
+}
+.sidebar-title,
+.stat-label,
+.stat-sub,
+.gantt-title,
+.gantt-count,
+.gantt-item-title,
+.src-badge,
+.tactic-status,
+.tactic-tag,
+.tactic-meta,
+.tactic-detail-kv .k,
+.tactic-check-count,
+.tactic-detail-subtitle,
+.tactic-image-caption,
+.tactic-paste-hint {
+  font-size: 12px;
+}
+.stat-value { font-size: 22px; }
+.tactic-toolbar h2 { font-size: 20px; }
+.tactic-name { font-size: 15px; }
+.tactic-summary,
+.tactic-detail-kv .v,
+.tactic-check-group summary,
+.tactic-cond-list,
+.tactic-source-md,
+.tactic-import-drop,
+.empty-hint {
+  font-size: 14px;
+}
+.tactic-source-md h4 { font-size: 15px; }
+.tactic-source-md h5 { font-size: 14px; }
+.detail-section-title,
+.tactic-detail-title {
+  font-size: 15px;
+}
 </style>
 </head>
 <body>
